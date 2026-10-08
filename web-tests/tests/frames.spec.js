@@ -31,7 +31,10 @@ test('flipping byte 0, bit 0 of VehicleStatus changes VehicleSpeed by 0.01 km/h'
 });
 
 test('the summary says how long the file took to parse', async ({ page }) => {
-  await expect(page.locator('#db-summary p')).toHaveText(/^7 messages, 40 signals, 5 nodes, parsed in (under 1|\d+) ms$/);
+  // Non-breaking spaces keep "parsed in 3 ms" together when the rail wraps.
+  await expect(page.locator('#db-summary p')).toHaveText(
+    /^7 messages, 40 signals, 5 nodes, parsed in (under 1|\d+) ms$/,
+  );
 });
 
 test('a file that does not parse leaves the open file working', async ({ page }) => {

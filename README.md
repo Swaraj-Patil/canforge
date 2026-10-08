@@ -14,7 +14,7 @@ Every ECU in a vehicle talks over CAN, and a DBC file is the contract that says 
 - **Generate embedded C**: one struct per message plus `pack`/`unpack` functions that move each byte with a single shift and mask. C99, no heap allocation, no global state, warning-free under `-Wall -Wextra -Wpedantic -Wconversion` and nine more warning flags. Also generates dependency-free Python decoders for test benches and log analysis.
 - **Decode** raw frames into physical values, including multiplexed messages, IEEE 754 float signals and 64-bit fields.
 - **Diff** two revisions and classify every change: *breaking* (existing decoders would misread frames), *needs review*, or *compatible*. Exits non-zero on breaking changes, so it can gate pull requests.
-- **Visualize** where every signal sits, in the terminal or in the browser.
+- **Visualize** where every signal sits, in the terminal or in the browser, where you can find any message by name, signal name or frame ID (press `/`).
 
 canforge has **no dependencies**. One Rust crate builds both the native CLI and a small WebAssembly module with no imports.
 
