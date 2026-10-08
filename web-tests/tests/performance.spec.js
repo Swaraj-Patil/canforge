@@ -68,4 +68,22 @@ test('a bit flip updates the page within 50 ms on a 5,000-signal database', asyn
     const name = await select(page, messages.filter({ hasText: size }).first());
     holdToBudget(`5,000-signal database, ${name}${size}`, await timeFlips(page), 50);
   }
+
+  // Search has no budget in the roadmap; its timing is reported to catch regressions.
+  const searchTimes = await page.evaluate(() => {
+    const input = document.getElementById('search');
+    const times = [];
+    for (const q of ['s', 'sp', 'spe', 'spee', 'speed', 'speedf', '', '0x', '0x1', '0x18f', 'temp', '']) {
+      const start = performance.now();
+      input.value = q;
+      input.dispatchEvent(new Event('input', { bubbles: true }));
+      document.body.getBoundingClientRect();
+      times.push(performance.now() - start);
+    }
+    return times;
+  });
+  console.log(
+    `5,000-signal database, one search keystroke: median ${median(searchTimes).toFixed(2)} ms ` +
+      `over ${searchTimes.length} (slowest ${Math.max(...searchTimes).toFixed(2)} ms, no budget)`,
+  );
 });

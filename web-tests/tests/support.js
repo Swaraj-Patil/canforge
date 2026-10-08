@@ -1,4 +1,10 @@
 import { test as base, expect } from '@playwright/test';
+import { fileURLToPath } from 'node:url';
+
+/** The absolute path of a file in the repository, such as a test fixture. */
+export function repoFile(rel) {
+  return fileURLToPath(new URL(`../../${rel}`, import.meta.url));
+}
 
 /** Playwright's test, failing any test during which the page throws an uncaught error. */
 export const test = base.extend({

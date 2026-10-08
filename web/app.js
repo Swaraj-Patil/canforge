@@ -4,6 +4,7 @@ import { loadCanforge } from './canforge.js';
 import { $, fetchText, readChosenFile, setStatus, state } from './state.js';
 import { prefixFrom } from './format.js';
 import { bindFrames, renderMessage, renderMessageList, renderSummary } from './views/frames.js';
+import { bindSearch, clearSearch } from './views/search.js';
 import { renderProblems } from './views/problems.js';
 import { bindCode, renderCode } from './views/code.js';
 import { bindCompare, useExampleRevisions } from './views/compare.js';
@@ -33,6 +34,7 @@ function loadDatabase(text, fileName, isExample) {
   $('prefix').value = prefixFrom(fileName);
   setStatus('');
   renderSummary();
+  clearSearch();
   renderMessageList();
   renderMessage();
   renderProblems();
@@ -89,6 +91,7 @@ function bindUi() {
   });
 
   bindFrames();
+  bindSearch({ showFrames: () => showTab('frames') });
   bindCode();
   bindCompare();
 }

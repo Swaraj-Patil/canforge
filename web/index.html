@@ -40,6 +40,14 @@
   <section id="view-frames" role="tabpanel" aria-labelledby="tab-frames" class="frames-view">
     <aside class="rail" aria-label="Messages">
       <div id="db-summary" class="db-summary"></div>
+      <div class="search" role="search">
+        <label for="search">Find a message</label>
+        <div class="search-field">
+          <input id="search" type="search" placeholder="Name, signal or frame ID" autocomplete="off" spellcheck="false" aria-keyshortcuts="/" aria-describedby="search-count" aria-controls="message-list">
+          <kbd aria-hidden="true">/</kbd>
+        </div>
+        <p id="search-count" class="search-count" aria-live="polite"></p>
+      </div>
       <ul id="message-list" class="message-list"></ul>
     </aside>
     <div id="message-detail" class="detail"></div>

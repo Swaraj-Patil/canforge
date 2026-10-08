@@ -49,24 +49,35 @@ function duration(ms) {
 
 export function renderSummary() {
   const s = state.analysis.summary;
+  // Non-breaking spaces keep "parsed in 3 ms" on one line in the narrow rail.
+  const parsed = `parsed in ${duration(state.loadMs)}`.replace(/ /g, ' ');
   $('db-summary').innerHTML =
     `<h2>${escapeHtml(state.fileName)}</h2>` +
-    `<p>${plural(s.messages, 'message')}, ${plural(s.signals, 'signal')}, ${plural(s.nodes, 'node')}, ` +
-    `parsed in ${duration(state.loadMs)}</p>`;
+    `<p>${plural(s.messages, 'message')}, ${plural(s.signals, 'signal')}, ${plural(s.nodes, 'node')}, ${parsed}</p>`;
   const total = s.errors + s.warnings + s.infos;
   $('problem-count').textContent = total ? String(total) : '';
 }
 
+// The frame as one strip, bit 7 of byte 0 at the left, with one path per
+// signal covering its runs of neighbouring bits. Paths rather than a rect
+// per bit keep a list of 500 messages light enough to filter while typing.
 function barcode(msg) {
   const width = Math.max(msg.dlc * 8, 1);
-  const rects = [];
+  const paths = [];
   msg.signals.forEach((sig, si) => {
-    for (const [byte, bit] of sig.bits) {
-      if (byte >= msg.dlc) continue;
-      rects.push(`<rect x="${byte * 8 + (7 - bit)}" y="0" width="1" height="1" fill="${colorFor(si)}"/>`);
+    const xs = sig.bits.filter(([byte]) => byte < msg.dlc).map(([byte, bit]) => byte * 8 + (7 - bit));
+    if (!xs.length) return;
+    xs.sort((a, b) => a - b);
+    let d = '';
+    let start = xs[0];
+    for (let i = 1; i <= xs.length; i += 1) {
+      if (i < xs.length && xs[i] === xs[i - 1] + 1) continue;
+      d += `M${start} 0h${xs[i - 1] - start + 1}v1H${start}z`;
+      start = xs[i];
     }
+    paths.push(`<path d="${d}" fill="${colorFor(si)}"/>`);
   });
-  return `<svg class="barcode" viewBox="0 0 ${width} 1" preserveAspectRatio="none" aria-hidden="true">${rects.join('')}</svg>`;
+  return `<svg class="barcode" viewBox="0 0 ${width} 1" preserveAspectRatio="none" aria-hidden="true">${paths.join('')}</svg>`;
 }
 
 export function renderMessageList() {
@@ -75,10 +86,21 @@ export function renderMessageList() {
     .map(
       (msg, i) => `<li><button type="button" data-index="${i}" aria-current="${i === state.selected}">
         <span class="name">${escapeHtml(msg.name)}</span>
-        <span class="meta">${escapeHtml(msg.id_hex)}, ${plural(msg.dlc, 'byte')}</span>
+        <span class="meta"><span class="id">${escapeHtml(msg.id_hex)}</span>, ${plural(msg.dlc, 'byte')}</span>
+        <span class="found" hidden></span>
         ${barcode(msg)}</button></li>`,
     )
     .join('');
+}
+
+/** Show message `index` of the open file in the frame view. */
+export function selectMessage(index) {
+  state.selected = index;
+  state.animate = true;
+  for (const b of document.querySelectorAll('#message-list button')) {
+    b.setAttribute('aria-current', String(Number(b.dataset.index) === index));
+  }
+  renderMessage();
 }
 
 export function renderMessage() {
@@ -236,13 +258,7 @@ function highlight(si) {
 export function bindFrames() {
   $('message-list').addEventListener('click', (e) => {
     const button = e.target.closest('button[data-index]');
-    if (!button) return;
-    state.selected = Number(button.dataset.index);
-    state.animate = true;
-    for (const b of document.querySelectorAll('#message-list button')) {
-      b.setAttribute('aria-current', String(b === button));
-    }
-    renderMessage();
+    if (button) selectMessage(Number(button.dataset.index));
   });
 
   const detail = $('message-detail');
