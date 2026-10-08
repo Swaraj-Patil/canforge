@@ -1,7 +1,8 @@
 // Frames view: the message list, the bit grid of the chosen message, and
 // its decoded values.
-import { $, state } from '../state.js';
+import { $, currentMessage, state } from '../state.js';
 import { colorFor, escapeHtml, formatPhysical, parseHexInput, plural, sentence, tint, toHex } from '../format.js';
+import { renderInspector } from './inspector.js';
 
 // Plausible frames for the example bus, so the first view shows real values.
 const EXAMPLE_FRAMES = {
@@ -13,10 +14,6 @@ const EXAMPLE_FRAMES = {
   WheelSpeeds: '20 b2 09 20 82 0a 96 c0',
   DiagnosticFD: '40 e2 01 00 07 00 00 00 34 12 ee ff c0 00 00 00',
 };
-
-export function currentMessage() {
-  return state.analysis ? state.analysis.messages[state.selected] || null : null;
-}
 
 function frameFor(msg) {
   let bytes = state.frames.get(msg.name);
@@ -93,9 +90,10 @@ export function renderMessageList() {
     .join('');
 }
 
-/** Show message `index` of the open file in the frame view. */
-export function selectMessage(index) {
+/** Show message `index` of the open file, with signal `inspect` in the inspector. */
+export function selectMessage(index, inspect = null) {
   state.selected = index;
+  state.inspect = inspect;
   state.animate = true;
   for (const b of document.querySelectorAll('#message-list button')) {
     b.setAttribute('aria-current', String(Number(b.dataset.index) === index));
@@ -132,9 +130,11 @@ export function renderMessage() {
         </div>
         <p id="hex-error" class="hex-error" hidden></p>
         <div id="decoded"></div>
+        <section id="inspector" class="inspector" aria-labelledby="inspector-title" hidden></section>
       </div>
     </div>`;
   refreshFrame(false);
+  renderInspector();
 }
 
 function activeSignals(msg, result) {
@@ -273,8 +273,10 @@ function tableHtml(msg, result) {
       const sig = msg.signals[si];
       const unit = s.unit ? ` ${escapeHtml(s.unit)}` : '';
       const label = s.label ? `<span class="label-text">${escapeHtml(s.label)}</span>` : '';
+      const open = si === state.inspect;
       return (
-        `<tr data-sig="${si}"><td><span class="swatch" style="--c:${colorFor(si)}"></span>${escapeHtml(s.name)}</td>` +
+        `<tr data-sig="${si}"${open ? ' class="inspected"' : ''}><td><button type="button" class="signal-name" aria-expanded="${open}" aria-controls="inspector">` +
+        `<span class="swatch" style="--c:${colorFor(si)}"></span>${escapeHtml(s.name)}</button></td>` +
         `<td class="num">${escapeHtml(formatPhysical(sig, s.physical))}${unit}</td>` +
         `<td class="num">${escapeHtml(s.raw)}</td><td>${label}</td></tr>`
       );
@@ -307,7 +309,7 @@ function refreshFrame(fromInput) {
     patchMatrix(matrix, msg, bytes, owner);
   }
   $('decoded').innerHTML = tableHtml(msg, result);
-  if (pointedAt !== null) highlight(pointedAt);
+  highlight(pointedAt);
   if (!fromInput) {
     $('hex-input').value = toHex(bytes);
     $('hex-input').removeAttribute('aria-invalid');
@@ -319,26 +321,61 @@ function refreshFrame(fromInput) {
 // The signal under the pointer or keyboard focus, if any.
 let pointedAt = null;
 
+// Light up one signal's bits and row. With nothing pointed at, the signal
+// open in the inspector stays lit.
 function highlight(si) {
   pointedAt = si;
+  const lit = si !== null ? si : state.inspect;
   for (const cell of document.querySelectorAll('#matrix .bit, #matrix .run')) {
-    cell.classList.toggle('dim', si !== null && cell.dataset.sig !== String(si));
+    cell.classList.toggle('dim', lit !== null && cell.dataset.sig !== String(lit));
   }
   for (const row of document.querySelectorAll('#decoded tr[data-sig]')) {
-    row.classList.toggle('hot', si !== null && row.dataset.sig === String(si));
+    row.classList.toggle('hot', lit !== null && row.dataset.sig === String(lit));
   }
+}
+
+// Open signal `si` of the selected message in the inspector, or close it with null.
+function inspect(si) {
+  state.inspect = si;
+  for (const row of document.querySelectorAll('#decoded tr[data-sig]')) {
+    const open = Number(row.dataset.sig) === si;
+    row.classList.toggle('inspected', open);
+    row.querySelector('.signal-name').setAttribute('aria-expanded', String(open));
+  }
+  renderInspector();
+  highlight(pointedAt);
+  if (si !== null) $('inspector').scrollIntoView({ block: 'nearest' });
+}
+
+function closeInspector() {
+  const si = state.inspect;
+  inspect(null);
+  const name = document.querySelector(`#decoded tr[data-sig="${si}"] .signal-name`);
+  if (name) name.focus();
 }
 
 export function bindFrames() {
   $('message-list').addEventListener('click', (e) => {
     const button = e.target.closest('button[data-index]');
-    if (button) selectMessage(Number(button.dataset.index));
+    // A search hit found through a signal opens that signal in the inspector.
+    if (button) selectMessage(Number(button.dataset.index), button.dataset.inspect ? Number(button.dataset.inspect) : null);
   });
 
   const detail = $('message-detail');
   detail.addEventListener('click', (e) => {
     const msg = currentMessage();
     if (!msg) return;
+    const signalRow = e.target.closest('#decoded tr[data-sig]');
+    if (signalRow) {
+      const si = Number(signalRow.dataset.sig);
+      if (si === state.inspect) closeInspector();
+      else inspect(si);
+      return;
+    }
+    if (e.target.closest('[data-close-inspector]')) {
+      closeInspector();
+      return;
+    }
     const bytes = frameFor(msg);
     const cell = e.target.closest('.bit');
     if (cell) {
@@ -384,6 +421,13 @@ export function bindFrames() {
     error.hidden = true;
     frameFor(msg).set(parsed.bytes);
     refreshFrame(true);
+  });
+
+  detail.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && state.inspect !== null) {
+      e.preventDefault();
+      closeInspector();
+    }
   });
 
   const onPoint = (e) => {

@@ -4,7 +4,7 @@
 
 [![CI](https://github.com/Swaraj-Patil/canforge/actions/workflows/ci.yml/badge.svg)](https://github.com/Swaraj-Patil/canforge/actions/workflows/ci.yml)
 
-**[Try it in your browser](https://swaraj-patil.github.io/canforge/)**: open the example bus, click any bit of a frame, and watch the decoded values change. Every row of the bit grid shows its byte in hex and decimal, and each signal's name sits across its bits. The page runs the same Rust code as the command-line tool, compiled to WebAssembly, and your file never leaves the browser. It parses the file once and keeps it in memory, so decoding stays instant even on databases with thousands of signals; the summary shows how long parsing took.
+**[Try it in your browser](https://swaraj-patil.github.io/canforge/)**: open the example bus, click any bit of a frame, and watch the decoded values change. Every row of the bit grid shows its byte in hex and decimal, and each signal's name sits across its bits. Click a signal to inspect it: its layout in words, its scaling, the range its bits can hold, its value descriptions, and the exact C that canforge generates for it. The page runs the same Rust code as the command-line tool, compiled to WebAssembly, and your file never leaves the browser. It parses the file once and keeps it in memory, so decoding stays instant even on databases with thousands of signals; the summary shows how long parsing took.
 
 ---
 
@@ -92,7 +92,7 @@ Bit packing is where CAN tooling goes wrong quietly, especially Motorola byte or
 | Check | What it proves |
 |---|---|
 | **Reference model** ([`reference/canforge_ref.py`](reference/canforge_ref.py)) | An executable specification in plain Python that packs one bit at a time and shares no code with the generator. |
-| **Golden files** ([`tests/golden.rs`](tests/golden.rs)) | The Rust output must match the reference byte for byte: generated C and Python, 280 decoded frames compared as exact IEEE 754 bit patterns, all lint findings and all diff results. |
+| **Golden files** ([`tests/golden.rs`](tests/golden.rs)) | The Rust output must match the reference byte for byte: generated C and Python, 280 decoded frames compared as exact IEEE 754 bit patterns, the range every signal's bits can hold (64-bit bounds as exact integers), all lint findings and all diff results. The C the browser shows for any one signal must appear verbatim in the generated files. |
 | **Every bit layout** | All 4,160 placements that fit an 8-byte frame (both byte orders, every start bit and length), round-tripped through two independent packing methods. |
 | **Differential C test** | The generated C packs and unpacks 2,800 random frames and is compared field by field against the reference: 40,117 checks, run under AddressSanitizer and UndefinedBehaviorSanitizer. |
 | **Strict compilation** | The generated C must compile with `-Werror` under 13 warning flags, and the header must compile as C++. |

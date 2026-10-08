@@ -209,6 +209,23 @@ fn signal_doc(s: &Signal) -> String {
     text
 }
 
+/// The signal's member of its message struct, with its comment.
+fn field_lines(s: &Signal, field: &str) -> Vec<String> {
+    let mut lines: Vec<String> = Vec::new();
+    let doc = wrap(&signal_doc(s), 74, "");
+    if doc.len() == 1 {
+        lines.push(format!("    /* {} */", doc[0]));
+    } else {
+        lines.push("    /*".to_string());
+        for d in doc.iter() {
+            lines.push(format!("     * {}", d));
+        }
+        lines.push("     */".to_string());
+    }
+    lines.push(format!("    {} {};", c_type(s), field));
+    lines
+}
+
 fn pack_lines(s: &Signal, field: &str, indent: &str) -> Vec<String> {
     let mut lines: Vec<String> = Vec::new();
     lines.push(format!("{}/* {} */", indent, s.name));
@@ -387,6 +404,52 @@ fn signal_functions(s: &Signal, func: &str) -> Vec<String> {
     out
 }
 
+/// The generated C for one signal. Every part is a block of text exactly as
+/// `generate` writes it, so the snippet always agrees with the full files.
+#[derive(Debug, Clone)]
+pub struct SignalSnippet {
+    /// The signal's member of its message struct, with its comment (header).
+    pub field: String,
+    /// The message's pack function, and the signal's lines in it (source).
+    pub pack_function: String,
+    pub pack: String,
+    /// The message's unpack function, and the signal's lines in it (source).
+    pub unpack_function: String,
+    pub unpack: String,
+    /// The signal's decode, encode and is_in_range functions (source).
+    pub functions: String,
+}
+
+/// The generated C for signal `signal_index` of message `message_index`,
+/// with the same names `generate` gives them. Like `generate`, it refuses a
+/// database with lint errors.
+pub fn signal_snippet(db: &Database, message_index: usize, signal_index: usize, prefix: &str) -> Result<SignalSnippet, String> {
+    let m = match db.messages.get(message_index) {
+        Some(m) => m,
+        None => return Err(format!("the database has no message {}", message_index)),
+    };
+    let s = match m.signals.get(signal_index) {
+        Some(s) => s,
+        None => return Err(format!("message '{}' has no signal {}", m.name, signal_index)),
+    };
+    require_clean(db)?;
+    let names = Names::new(db);
+    let mname = &names.msg[message_index];
+    let field = &names.sig[message_index][signal_index];
+    // Multiplexed signals are packed inside the switch on the multiplexer.
+    let indent = if s.mux_value().is_some() { "        " } else { "    " };
+    let functions = signal_functions(s, &format!("{}_{}_{}", prefix, mname, field));
+    Ok(SignalSnippet {
+        field: field_lines(s, field).join("\n"),
+        pack_function: format!("{}_{}_pack", prefix, mname),
+        pack: pack_lines(s, field, indent).join("\n"),
+        unpack_function: format!("{}_{}_unpack", prefix, mname),
+        unpack: unpack_lines(s, field, indent).join("\n"),
+        // Without the blank line that separates the functions from the code before them.
+        functions: functions[1..].join("\n"),
+    })
+}
+
 /// Generate `(header, source)` for `prefix.h` and `prefix.c`.
 pub fn generate(db: &Database, prefix: &str, source_name: &str) -> Result<(String, String), String> {
     require_clean(db)?;
@@ -490,17 +553,7 @@ pub fn generate(db: &Database, prefix: &str, source_name: &str) -> Result<(Strin
             h.push("    uint8_t unused; /* This message has no signals. */".to_string());
         }
         for (si, s) in m.signals.iter().enumerate() {
-            let doc = wrap(&signal_doc(s), 74, "");
-            if doc.len() == 1 {
-                h.push(format!("    /* {} */", doc[0]));
-            } else {
-                h.push("    /*".to_string());
-                for d in doc.iter() {
-                    h.push(format!("     * {}", d));
-                }
-                h.push("     */".to_string());
-            }
-            h.push(format!("    {} {};", c_type(s), names.sig[mi][si]));
+            h.extend(field_lines(s, &names.sig[mi][si]));
         }
         h.push(format!("}} {};", typ));
         h.push(String::new());
@@ -690,4 +743,34 @@ pub fn generate(db: &Database, prefix: &str, source_name: &str) -> Result<(Strin
     c.push(String::new());
 
     Ok((h.join("\n"), c.join("\n")))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::parser::parse;
+
+    const EXAMPLE: &str = include_str!("../examples/powertrain.dbc");
+
+    #[test]
+    fn snippet_refuses_unknown_indices_and_lint_errors() {
+        let db = parse(EXAMPLE).unwrap();
+        assert!(signal_snippet(&db, 7, 0, "p").unwrap_err().contains("no message 7"));
+        assert!(signal_snippet(&db, 0, 8, "p").unwrap_err().contains("'VehicleStatus' has no signal 8"));
+        let bad = parse(include_str!("../tests/fixtures/lint/e001_signal_overlap.dbc")).unwrap();
+        assert!(signal_snippet(&bad, 0, 0, "p").unwrap_err().contains("lint error"));
+    }
+
+    #[test]
+    fn snippet_indents_multiplexed_signals_as_the_switch_does() {
+        let db = parse(EXAMPLE).unwrap();
+        // InverterTelemetry: PageIndex is the multiplexer, StatorTemp is on page 1.
+        let mux = signal_snippet(&db, 2, 0, "p").unwrap();
+        assert!(mux.pack.starts_with("    /* PageIndex */\n    v = (uint64_t)src_p->page_index;"), "{}", mux.pack);
+        let paged = signal_snippet(&db, 2, 3, "p").unwrap();
+        assert!(paged.pack.starts_with("        /* StatorTemp */"), "{}", paged.pack);
+        assert!(paged.unpack.starts_with("        /* StatorTemp */"), "{}", paged.unpack);
+        assert_eq!(paged.pack_function, "p_inverter_telemetry_pack");
+        assert!(paged.functions.starts_with("double p_inverter_telemetry_stator_temp_decode(uint8_t raw)"));
+    }
 }

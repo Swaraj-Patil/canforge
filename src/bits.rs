@@ -151,6 +151,34 @@ pub fn physical_value(s: &Signal, raw: i128) -> f64 {
     }
 }
 
+/// What a signal can carry, as `(raw_min, raw_max, physical_min, physical_max)`.
+///
+/// The raw bounds are the raw values decode can report: the signed or
+/// unsigned range of an integer signal, and the unsigned bit pattern of a
+/// float signal. The physical bounds are the extreme values decode can
+/// produce: an integer signal's raw extremes scaled exactly as decode scales
+/// them, and a float signal's largest finite magnitude, scaled. A signal
+/// with an invalid length has no bits to decode, and no range.
+pub fn representable_range(s: &Signal) -> Option<(i128, i128, f64, f64)> {
+    if !s.valid_length() {
+        return None;
+    }
+    let (rmin, rmax, a, b) = match s.value_type {
+        ValueType::Integer => {
+            let (rmin, rmax) = raw_range(s.length, s.signed);
+            (rmin, rmax, physical_value(s, rmin), physical_value(s, rmax))
+        }
+        ValueType::Float32 | ValueType::Float64 => {
+            let (rmin, rmax) = raw_range(s.length, false);
+            let top = if s.value_type == ValueType::Float32 { f32::MAX as f64 } else { f64::MAX };
+            (rmin, rmax, -top * s.factor + s.offset, top * s.factor + s.offset)
+        }
+    };
+    let lo = if a <= b { a } else { b };
+    let hi = if a >= b { a } else { b };
+    Some((rmin, rmax, lo, hi))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

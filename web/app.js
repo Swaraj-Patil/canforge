@@ -27,6 +27,7 @@ function loadDatabase(text, fileName, isExample) {
     analysis,
     loadMs,
     selected: 0,
+    inspect: null,
     frames: new Map(),
     animate: true,
     fileIndex: 0,

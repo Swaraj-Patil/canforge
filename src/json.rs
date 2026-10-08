@@ -1,6 +1,6 @@
 //! A small JSON writer, and the JSON documents the CLI and the browser use.
 
-use crate::bits::signal_bits;
+use crate::bits::{representable_range, signal_bits};
 use crate::decode::{decode_message, no_message, parse_frame_id, parse_hex, Decoded};
 use crate::diff::{counts as diff_counts, diff, verdict};
 use crate::lint::{counts as lint_counts, lint, Diag, RULES};
@@ -208,19 +208,29 @@ pub fn analysis(db: &Database) -> String {
                 .map(|(v, l)| Obj::new().text("value", &v.to_string()).text("label", l).build())
                 .collect();
             let receivers: Vec<String> = s.receivers.iter().map(|r| esc(r)).collect();
+            let o = Obj::new()
+                .text("name", &s.name)
+                .int("start", s.start as i128)
+                .int("length", s.length as i128)
+                .text("byte_order", if s.little_endian { "intel" } else { "motorola" })
+                .flag("signed", s.signed)
+                .text("value_type", s.value_type.as_str())
+                .number("factor", s.factor)
+                .number("offset", s.offset)
+                .number("minimum", s.minimum)
+                .number("maximum", s.maximum);
+            // What the bits can carry. Raw bounds are strings, since 64-bit
+            // values do not fit a JSON number exactly.
+            let o = match representable_range(s) {
+                Some((rmin, rmax, pmin, pmax)) => o
+                    .text("raw_min", &rmin.to_string())
+                    .text("raw_max", &rmax.to_string())
+                    .number("physical_min", pmin)
+                    .number("physical_max", pmax),
+                None => o.null("raw_min").null("raw_max").null("physical_min").null("physical_max"),
+            };
             signals.push(
-                Obj::new()
-                    .text("name", &s.name)
-                    .int("start", s.start as i128)
-                    .int("length", s.length as i128)
-                    .text("byte_order", if s.little_endian { "intel" } else { "motorola" })
-                    .flag("signed", s.signed)
-                    .text("value_type", s.value_type.as_str())
-                    .number("factor", s.factor)
-                    .number("offset", s.offset)
-                    .number("minimum", s.minimum)
-                    .number("maximum", s.maximum)
-                    .text("unit", &s.unit)
+                o.text("unit", &s.unit)
                     .raw("receivers", arr(receivers))
                     .raw("mux", mux_json(s.mux))
                     .text("comment", &s.comment)
@@ -379,6 +389,39 @@ pub fn generated_json(db: &Database, lang: &str, prefix: &str, source_name: &str
     }
 }
 
+/// The generated C for one signal, given its message and signal indices as
+/// text, with each part as `codegen_c::signal_snippet` returns it.
+pub fn signal_code_json(db: &Database, message: &str, signal: &str, prefix: &str) -> String {
+    let index = |text: &str, what: &str| {
+        text.trim()
+            .parse::<usize>()
+            .map_err(|_| format!("'{}' is not a {} index", text.trim(), what))
+    };
+    let (mi, si) = match (index(message, "message"), index(signal, "signal")) {
+        (Ok(mi), Ok(si)) => (mi, si),
+        (Err(e), _) | (_, Err(e)) => return error_json(&e, None),
+    };
+    let prefix = if prefix.trim().is_empty() {
+        "canbus".to_string()
+    } else {
+        snake(prefix.trim())
+    };
+    match codegen_c::signal_snippet(db, mi, si, &prefix) {
+        Ok(s) => Obj::new()
+            .flag("ok", true)
+            .text("header", &format!("{}.h", prefix))
+            .text("source", &format!("{}.c", prefix))
+            .text("field", &s.field)
+            .text("pack_function", &s.pack_function)
+            .text("pack", &s.pack)
+            .text("unpack_function", &s.unpack_function)
+            .text("unpack", &s.unpack)
+            .text("functions", &s.functions)
+            .build(),
+        Err(e) => error_json(&e, None),
+    }
+}
+
 /// Changes between two revisions.
 pub fn diff_json(old_src: &str, new_src: &str) -> String {
     let old = match parse(old_src) {
@@ -469,6 +512,27 @@ mod tests {
             let j = decoded_json(&db, &frames, id, hex);
             assert!(j.starts_with("{\"ok\":false") && j.contains(fragment), "{} {}: {}", id, hex, j);
         }
+    }
+
+    #[test]
+    fn signal_code_takes_indices_as_text() {
+        let db = parse(include_str!("../examples/powertrain.dbc")).unwrap();
+        let j = signal_code_json(&db, "0", " 0 ", "Powertrain");
+        assert!(j.starts_with("{\"ok\":true"), "{}", j);
+        assert!(j.contains("\"header\":\"powertrain.h\""));
+        assert!(j.contains("\"pack_function\":\"powertrain_vehicle_status_pack\""));
+        assert!(signal_code_json(&db, "x", "0", "p").contains("'x' is not a message index"));
+        assert!(signal_code_json(&db, "0", "-1", "p").contains("'-1' is not a signal index"));
+        assert!(signal_code_json(&db, "9", "0", "p").contains("no message 9"));
+    }
+
+    #[test]
+    fn analysis_reports_what_each_signal_can_carry() {
+        let j = analyze_json(include_str!("../examples/powertrain.dbc"));
+        // VehicleSpeed, a 16-bit unsigned signal scaled by 0.01.
+        assert!(j.contains("\"raw_min\":\"0\",\"raw_max\":\"65535\",\"physical_min\":0.0,\"physical_max\":655.35"));
+        // SerialNumber: the 64-bit bound stays exact as a string.
+        assert!(j.contains("\"raw_max\":\"18446744073709551615\""));
     }
 
     #[test]

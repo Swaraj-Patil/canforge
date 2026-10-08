@@ -1,5 +1,5 @@
 // Generated code view: C or Python for the open file, to copy or download.
-import { $, flash, state } from '../state.js';
+import { $, codePrefix, flash, state } from '../state.js';
 import { escapeHtml, plural, sentence } from '../format.js';
 
 function setCodeButtons(enabled) {
@@ -9,7 +9,7 @@ function setCodeButtons(enabled) {
 
 export function renderCode() {
   if (!state.analysis) return;
-  const result = state.cf.generateLoaded(state.lang, $('prefix').value.trim(), state.fileName);
+  const result = state.cf.generateLoaded(state.lang, codePrefix(), state.fileName);
   if (!result.ok) {
     state.files = [];
     $('code-files').innerHTML = '';

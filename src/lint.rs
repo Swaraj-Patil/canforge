@@ -3,7 +3,7 @@
 //! Message text and the order of findings match the reference model exactly;
 //! `tests/golden/lint.tsv` holds the expected output for every fixture.
 
-use crate::bits::{raw_range, signal_bits};
+use crate::bits::{raw_range, representable_range, signal_bits};
 use crate::model::{Database, Mux, Signal, ValueType, NO_NODE};
 use crate::names::c_ident;
 use crate::numfmt::fmt_f64;
@@ -302,33 +302,27 @@ pub fn lint(db: &Database) -> Vec<Diag> {
                     &m.name,
                     &s.name,
                 ));
-            } else if s.valid_length()
-                && s.value_type == ValueType::Integer
-                && s.factor != 0.0
-                && !s.has_unspecified_range()
-            {
-                let (rmin, rmax) = raw_range(s.length, s.signed);
-                let a = (rmin as f64) * s.factor + s.offset;
-                let b = (rmax as f64) * s.factor + s.offset;
-                let lo_p = if a <= b { a } else { b };
-                let hi_p = if a >= b { a } else { b };
-                let tol = 1e-6 * f64::max(f64::max(1.0, lo_p.abs()), hi_p.abs());
-                if s.minimum < lo_p - tol || s.maximum > hi_p + tol {
-                    out.push(diag(
-                        "W001",
-                        format!(
-                            "signal '{}' declares range [{}|{}] but its {}-bit raw value can only represent [{}|{}]",
-                            s.name,
-                            fmt_f64(s.minimum),
-                            fmt_f64(s.maximum),
-                            s.length,
-                            fmt_f64(lo_p),
-                            fmt_f64(hi_p)
-                        ),
-                        s.line,
-                        &m.name,
-                        &s.name,
-                    ));
+            } else if s.value_type == ValueType::Integer && s.factor != 0.0 && !s.has_unspecified_range() {
+                // Only signals with a valid length have a range to check.
+                if let Some((_, _, lo_p, hi_p)) = representable_range(s) {
+                    let tol = 1e-6 * f64::max(f64::max(1.0, lo_p.abs()), hi_p.abs());
+                    if s.minimum < lo_p - tol || s.maximum > hi_p + tol {
+                        out.push(diag(
+                            "W001",
+                            format!(
+                                "signal '{}' declares range [{}|{}] but its {}-bit raw value can only represent [{}|{}]",
+                                s.name,
+                                fmt_f64(s.minimum),
+                                fmt_f64(s.maximum),
+                                s.length,
+                                fmt_f64(lo_p),
+                                fmt_f64(hi_p)
+                            ),
+                            s.line,
+                            &m.name,
+                            &s.name,
+                        ));
+                    }
                 }
             }
 

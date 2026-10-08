@@ -67,6 +67,45 @@ fn generated_c_matches_reference() {
     assert_same_text("powertrain.c", &source, &read("tests/golden/powertrain.c"));
 }
 
+/// The body of the function `name` in generated C: from its signature to
+/// the closing brace at the start of a line.
+fn function_body<'a>(source: &'a str, name: &str) -> &'a str {
+    let start = source.find(&format!(" {}(", name)).unwrap_or_else(|| panic!("no function {}", name));
+    let end = start + source[start..].find("\n}\n").unwrap_or_else(|| panic!("{} never ends", name));
+    &source[start..end]
+}
+
+#[test]
+fn every_signal_snippet_appears_verbatim_in_the_generated_c() {
+    let db = load("examples/powertrain.dbc");
+    let header = read("tests/golden/powertrain.h");
+    let source = read("tests/golden/powertrain.c");
+    let mut parts = 0;
+    for (mi, m) in db.messages.iter().enumerate() {
+        for (si, s) in m.signals.iter().enumerate() {
+            let snip = codegen_c::signal_snippet(&db, mi, si, "powertrain").unwrap();
+            let what = format!("{}.{}", m.name, s.name);
+            for (part, text, file) in [
+                ("struct field", &snip.field, &header),
+                ("pack lines", &snip.pack, &source),
+                ("unpack lines", &snip.unpack, &source),
+                ("functions", &snip.functions, &source),
+            ] {
+                assert!(!text.trim().is_empty(), "{}: the {} are empty", what, part);
+                assert!(file.contains(text.as_str()), "{}: the {} are not in the generated file:\n{}", what, part, text);
+                parts += 1;
+            }
+            // The lines sit inside the function the snippet names, and are this signal's.
+            assert!(function_body(&source, &snip.pack_function).contains(&snip.pack), "{} pack", what);
+            assert!(function_body(&source, &snip.unpack_function).contains(&snip.unpack), "{} unpack", what);
+            assert!(snip.pack.trim_start().starts_with(&format!("/* {} */", s.name)), "{}", what);
+            assert!(snip.field.contains(&format!("{}: {}|{}@", s.name, s.start, s.length)), "{}", what);
+            assert!(snip.functions.ends_with('}'), "{}", what);
+        }
+    }
+    assert_eq!(parts, 40 * 4);
+}
+
 #[test]
 fn generated_python_matches_reference() {
     let db = load("examples/powertrain.dbc");
@@ -129,6 +168,31 @@ fn decoding_matches_reference_vectors() {
     }
     assert_eq!(frames, 280);
     assert!(values > 1000);
+}
+
+#[test]
+fn representable_ranges_match_reference() {
+    let db = load("examples/powertrain.dbc");
+    let mut got: Vec<String> = Vec::new();
+    for m in db.messages.iter() {
+        for s in m.signals.iter() {
+            got.push(match canforge::bits::representable_range(s) {
+                Some((rmin, rmax, pmin, pmax)) => format!(
+                    "{}\t{}\t{}\t{}\t{:016x}\t{:016x}",
+                    m.name,
+                    s.name,
+                    rmin,
+                    rmax,
+                    pmin.to_bits(),
+                    pmax.to_bits()
+                ),
+                None => format!("{}\t{}\t-\t-\t-\t-", m.name, s.name),
+            });
+        }
+    }
+    let want = data_lines(&read("tests/golden/ranges.tsv"));
+    assert_eq!(want.len(), 40);
+    assert_same_text("representable ranges", &got.join("\n"), &want.join("\n"));
 }
 
 #[test]

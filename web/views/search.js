@@ -77,6 +77,9 @@ export function applySearch() {
     const html = match ? foundHtml(msg, match.signals, query.text) : '';
     setHtml(found, html);
     found.hidden = !html;
+    // Found only through a signal: opening the message shows that signal.
+    if (match && !match.byName && !match.byId && match.signals.length) button.dataset.inspect = String(match.signals[0]);
+    else delete button.dataset.inspect;
   }
   const count = $('search-count');
   if (!query) count.textContent = '';
@@ -92,7 +95,7 @@ export function clearSearch() {
 
 function firstShown() {
   for (const li of $('message-list').children) {
-    if (!li.hidden) return Number(li.firstElementChild.dataset.index);
+    if (!li.hidden) return li.firstElementChild;
   }
   return null;
 }
@@ -112,8 +115,8 @@ export function bindSearch({ showFrames }) {
       }
     } else if (e.key === 'Enter' && input.value.trim()) {
       e.preventDefault();
-      const index = firstShown();
-      if (index !== null) selectMessage(index);
+      const first = firstShown();
+      if (first) selectMessage(Number(first.dataset.index), first.dataset.inspect ? Number(first.dataset.inspect) : null);
     }
   });
   // "/" focuses the search from anywhere except a field being typed in.

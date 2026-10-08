@@ -38,7 +38,7 @@ let misses = 0;
 
 function report(what, time, budget, note = '') {
   const verdict = budget === undefined ? '' : time <= budget ? `  budget ${budget} ms` : `  OVER the ${budget} ms budget`;
-  console.log(`${what.padEnd(52)} ${ms(time).padStart(10)}${verdict}${note ? `  (${note})` : ''}`);
+  console.log(`${what.padEnd(56)} ${ms(time).padStart(10)}${verdict}${note ? `  (${note})` : ''}`);
   if (budget !== undefined && time > budget) misses += 1;
 }
 
@@ -107,6 +107,20 @@ if (!gen.ok) {
 }
 const lines = gen.files.reduce((n, f) => n + f.content.split('\n').length, 0);
 report('generate C (cf_generate_loaded)', genTime, undefined, `${lines.toLocaleString('en-US')} lines`);
+
+// One signal's C, as the inspector asks for it. Each call lints and names the
+// whole database first, so it refuses exactly when full generation would.
+const snippetTimes = [];
+for (let i = 0; i < 20; i += 1) {
+  const mi = (i * 37) % analysis.messages.length;
+  const [t, snip] = timed(() => cf.signalCodeLoaded(mi, 0, 'large'));
+  if (!snip.ok) {
+    console.error(`wasm perf: the C for message ${mi} failed: ${snip.error.message}`);
+    process.exit(1);
+  }
+  snippetTimes.push(t);
+}
+report('C for one signal, median of 20 (cf_signal_code_loaded)', median(snippetTimes));
 
 if (misses && !reportOnly) {
   console.error(`wasm perf: ${misses} budget(s) missed`);

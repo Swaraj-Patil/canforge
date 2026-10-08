@@ -305,6 +305,35 @@ table.decoded { border-collapse: collapse; width: 100%; font-size: 0.9375rem; }
 .decoded tr.hot td { background: var(--panel); }
 .swatch { display: inline-block; width: 0.75rem; height: 0.75rem; border-radius: 2px; margin-right: 0.5rem; vertical-align: -1px; background: var(--c); }
 .label-text { color: var(--graphite); }
+.decoded tr[data-sig] { cursor: pointer; }
+.decoded tr.inspected td { background: var(--panel); }
+.decoded tr.inspected td:first-child { box-shadow: inset 3px 0 0 var(--action); }
+.signal-name { padding: 0; border: 0; background: none; color: inherit; font: inherit; text-align: left; cursor: pointer; }
+.decoded tr.inspected .signal-name { font-weight: 600; }
+
+/* Signal inspector */
+.inspector { margin-top: 1.5rem; padding-top: 1.25rem; border-top: 1px solid var(--rule-strong); }
+.inspector-head { display: flex; align-items: center; justify-content: space-between; gap: 1rem; }
+.inspector h3 { font: 600 1.375rem/1.2 var(--cond); margin: 0; overflow-wrap: anywhere; }
+.inspector .comment { margin: 0.45rem 0 0; }
+.inspector dl { display: grid; grid-template-columns: 9.5rem minmax(0, 1fr); gap: 0.5rem 1rem; margin: 1.1rem 0 0; }
+.inspector dt { color: var(--graphite); font-size: 0.875rem; padding-top: 0.1rem; }
+.inspector dd { margin: 0; overflow-wrap: anywhere; }
+.inspector dd .sub { display: block; color: var(--graphite); font-size: 0.875rem; margin-top: 0.15rem; }
+.inspector code { font: 400 0.8125rem/1.4 var(--mono); }
+.inspector h4 { font: 600 1.0625rem/1.3 var(--cond); margin: 1.6rem 0 0.2rem; }
+.inspector figure { margin: 0.8rem 0 0; }
+.inspector figcaption { font-size: 0.8125rem; color: var(--graphite); margin-bottom: 0.3rem; }
+.inspector pre.code { max-height: none; font-size: 0.75rem; padding: 0.75rem 1rem; }
+.inspector .finding { margin: 0 0 0.3rem; }
+.inspector .finding .sev { font-weight: 600; }
+.inspector .finding.error .sev { color: var(--error); }
+.inspector .finding.warning .sev { color: var(--warning); }
+.inspector .finding.info .sev { color: var(--note); }
+.choices { border-collapse: collapse; font-size: 0.9375rem; }
+.choices td { padding: 0.1rem 1rem 0.1rem 0; vertical-align: baseline; }
+.choices td:first-child { font: 400 0.875rem/1.4 var(--mono); text-align: right; color: var(--graphite); }
+.button.small { padding: 0.45rem 0.8rem; font-size: 0.875rem; }
 
 /* Problems */
 .problem-summary { font: 600 1.375rem/1.3 var(--cond); margin: 0 0 1rem; }
@@ -362,4 +391,6 @@ pre.code {
   .message-list { max-height: 15rem; overflow-y: auto; }
   .problems li { grid-template-columns: 1fr; }
   .code-actions { margin-left: 0; }
+  .inspector dl { grid-template-columns: 1fr; gap: 0.15rem; }
+  .inspector dd { margin-bottom: 0.5rem; }
 }
