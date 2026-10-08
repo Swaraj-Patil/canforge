@@ -43,11 +43,16 @@ function writeRaw(bytes, sig, value) {
   });
 }
 
+function duration(ms) {
+  return ms < 1 ? 'under 1 ms' : `${Math.round(ms)} ms`;
+}
+
 export function renderSummary() {
   const s = state.analysis.summary;
   $('db-summary').innerHTML =
     `<h2>${escapeHtml(state.fileName)}</h2>` +
-    `<p>${plural(s.messages, 'message')}, ${plural(s.signals, 'signal')}, ${plural(s.nodes, 'node')}</p>`;
+    `<p>${plural(s.messages, 'message')}, ${plural(s.signals, 'signal')}, ${plural(s.nodes, 'node')}, ` +
+    `parsed in ${duration(state.loadMs)}</p>`;
   const total = s.errors + s.warnings + s.infos;
   $('problem-count').textContent = total ? String(total) : '';
 }
@@ -204,7 +209,7 @@ function refreshFrame(fromInput) {
   const msg = currentMessage();
   if (!msg) return;
   const bytes = frameFor(msg);
-  const result = state.cf.decode(state.src, msg.id_hex, toHex(bytes));
+  const result = state.cf.decodeLoaded(msg.id_hex, toHex(bytes));
   const active = activeSignals(msg, result);
   $('pages').innerHTML = pagesHtml(msg, result);
   const matrix = $('matrix');

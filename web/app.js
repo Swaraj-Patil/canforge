@@ -8,8 +8,12 @@ import { renderProblems } from './views/problems.js';
 import { bindCode, renderCode } from './views/code.js';
 import { bindCompare, useExampleRevisions } from './views/compare.js';
 
+// Parses the file once, in WebAssembly, which keeps the result for decoding
+// and code generation. A file that does not parse leaves the open one loaded.
 function loadDatabase(text, fileName, isExample) {
-  const analysis = state.cf.analyze(text);
+  const started = performance.now();
+  const analysis = state.cf.load(text);
+  const loadMs = performance.now() - started;
   if (!analysis.ok) {
     const where = analysis.error.line ? ` (line ${analysis.error.line})` : '';
     setStatus(`${fileName} could not be read${where}: ${analysis.error.message}.`, true);
@@ -20,6 +24,7 @@ function loadDatabase(text, fileName, isExample) {
     fileName,
     isExample,
     analysis,
+    loadMs,
     selected: 0,
     frames: new Map(),
     animate: true,

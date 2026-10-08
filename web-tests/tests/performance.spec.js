@@ -61,6 +61,7 @@ test('a bit flip updates the page within 50 ms on a 5,000-signal database', asyn
   await expect(page.locator('#db-summary h2')).toHaveText('large.dbc');
   await expect(page.locator('#message-list button')).toHaveCount(500);
   console.log(`large.dbc: opened and listed in ${Date.now() - start} ms, timed from the test (includes Playwright overhead)`);
+  console.log(`large.dbc: the summary reads "${await page.locator('#db-summary p').textContent()}"`);
 
   const messages = page.locator('#message-list button');
   for (const size of [', 8 bytes', ', 64 bytes']) {

@@ -54,5 +54,10 @@ export async function loadCanforge(source) {
     decode: (src, frameId, hex) => call('cf_decode', src, frameId, hex),
     generate: (src, lang, prefix, fileName) => call('cf_generate', src, lang, prefix, fileName),
     diff: (oldSrc, newSrc) => call('cf_diff', oldSrc, newSrc),
+    // Parse a database once and keep it in the module; the *Loaded calls
+    // below then work on it without sending or parsing the text again.
+    load: (src) => call('cf_load', src),
+    decodeLoaded: (frameId, hex) => call('cf_decode_loaded', frameId, hex),
+    generateLoaded: (lang, prefix, fileName) => call('cf_generate_loaded', lang, prefix, fileName),
   };
 }

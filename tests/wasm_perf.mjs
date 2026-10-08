@@ -33,12 +33,12 @@ function median(times) {
   return sorted.length % 2 ? sorted[mid] : (sorted[mid - 1] + sorted[mid]) / 2;
 }
 
-const ms = (t) => `${t.toFixed(t < 10 ? 2 : 1)} ms`;
+const ms = (t) => (t < 0.1 ? `${(t * 1000).toFixed(1)} µs` : `${t.toFixed(t < 10 ? 2 : 1)} ms`);
 let misses = 0;
 
 function report(what, time, budget, note = '') {
   const verdict = budget === undefined ? '' : time <= budget ? `  budget ${budget} ms` : `  OVER the ${budget} ms budget`;
-  console.log(`${what.padEnd(44)} ${ms(time).padStart(10)}${verdict}${note ? `  (${note})` : ''}`);
+  console.log(`${what.padEnd(52)} ${ms(time).padStart(10)}${verdict}${note ? `  (${note})` : ''}`);
   if (budget !== undefined && time > budget) misses += 1;
 }
 
@@ -56,7 +56,7 @@ function hexOf(length) {
 
 // The first load pays for growing WebAssembly memory, so it is reported apart
 // from the warm median. The budget applies to both.
-const [cold, analysis] = timed(() => cf.analyze(src));
+const [cold, analysis] = timed(() => cf.load(src));
 if (!analysis.ok) {
   console.error(`wasm perf: ${dbcPath} did not load: ${analysis.error.message} (line ${analysis.error.line})`);
   process.exit(1);
@@ -64,32 +64,49 @@ if (!analysis.ok) {
 const s = analysis.summary;
 console.log(`${dbcPath}: ${s.messages} messages, ${s.signals} signals, ${(src.length / 1024).toFixed(0)} KB`);
 const warm = [];
-for (let i = 0; i < 10; i += 1) warm.push(timed(() => cf.analyze(src))[0]);
-report('load, first call (cf_analyze)', cold, 500);
-report('load, median of 10 (cf_analyze)', median(warm), 500);
+for (let i = 0; i < 10; i += 1) warm.push(timed(() => cf.load(src))[0]);
+report('load, first call (cf_load)', cold, 500);
+report('load, median of 10 (cf_load)', median(warm), 500);
 
 const frames = analysis.messages.map((m) => [m.id_hex, hexOf(m.dlc)]);
-const decodes = [];
-for (let i = 0; i < 50; i += 1) {
-  const [id, hex] = frames[(i * 37) % frames.length];
-  const [t, d] = timed(() => cf.decode(src, id, hex));
+function decodeOrExit(fn, id, hex) {
+  const d = fn(id, hex);
   if (!d.ok) {
     console.error(`wasm perf: decoding ${id} ${hex} failed: ${d.error.message}`);
     process.exit(1);
   }
-  decodes.push(t);
 }
-const perFrame = median(decodes);
-report('decode one frame, median of 50 (cf_decode)', perFrame, undefined,
-  `re-parses the file; 100,000 frames would take ${((perFrame * 100000) / 1000).toFixed(0)} s`);
 
-const [genTime, gen] = timed(() => cf.generate(src, 'c', 'large', 'large.dbc'));
+// Decoding through the loaded database: the mean over many frames, since one
+// frame takes too little time to measure on its own.
+const count = 10000;
+const [loadedTotal] = timed(() => {
+  for (let i = 0; i < count; i += 1) {
+    const [id, hex] = frames[(i * 37) % frames.length];
+    decodeOrExit(cf.decodeLoaded, id, hex);
+  }
+});
+const perLoaded = loadedTotal / count;
+report(`decode one frame, mean of ${count.toLocaleString('en-US')} (cf_decode_loaded)`, perLoaded, undefined,
+  `100,000 frames would take ${((perLoaded * 100000) / 1000).toFixed(1)} s`);
+
+// The old path re-parses the whole file for every frame.
+const reparsed = [];
+for (let i = 0; i < 50; i += 1) {
+  const [id, hex] = frames[(i * 37) % frames.length];
+  reparsed.push(timed(() => decodeOrExit((x, y) => cf.decode(src, x, y), id, hex))[0]);
+}
+const perReparse = median(reparsed);
+report('decode one frame, median of 50 (cf_decode)', perReparse, undefined,
+  `re-parses the file; 100,000 frames would take ${((perReparse * 100000) / 1000).toFixed(0)} s`);
+
+const [genTime, gen] = timed(() => cf.generateLoaded('c', 'large', 'large.dbc'));
 if (!gen.ok) {
   console.error(`wasm perf: generating C failed: ${gen.error.message}`);
   process.exit(1);
 }
 const lines = gen.files.reduce((n, f) => n + f.content.split('\n').length, 0);
-report('generate C (cf_generate)', genTime, undefined, `${lines.toLocaleString('en-US')} lines`);
+report('generate C (cf_generate_loaded)', genTime, undefined, `${lines.toLocaleString('en-US')} lines`);
 
 if (misses && !reportOnly) {
   console.error(`wasm perf: ${misses} budget(s) missed`);
