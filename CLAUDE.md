@@ -20,7 +20,7 @@ Read this before changing anything that turns bits into values or values into bi
 3. JavaScript never reimplements bit packing, decoding or encoding. All of it goes through the WebAssembly exports, so the browser runs the same verified code as the CLI.
 4. Files people open never leave their browser. No network requests except same-origin assets and Google Fonts. No analytics.
 5. Existing WebAssembly exports (`cf_version`, `cf_analyze`, `cf_decode`, `cf_generate`, `cf_diff`) keep working. Add new exports beside them.
-6. The site assembly (the CI `wasm` job and `scripts/dev-site.sh`) must include every file the page loads. Copy all of `web/` plus the example files, not a hand-picked list.
+6. The site assembly (`scripts/assemble-site.sh`, which the CI `wasm` job and `scripts/dev-site.sh` both run) must include every file the page loads. Copy all of `web/` plus the example files, not a hand-picked list.
 7. Interface copy: sentence case, active voice, plain words, no em-dashes, no all-caps labels.
 
 ## Commands (local Mac shell, from the repo root)
@@ -31,11 +31,17 @@ cargo test
 python3 reference/make_golden.py && git diff --exit-code tests/golden
 cargo build --release --lib --target wasm32-unknown-unknown
 node tests/wasm_smoke.mjs target/wasm32-unknown-unknown/release/canforge.wasm
+python3 reference/make_large_dbc.py build/large.dbc && node tests/wasm_perf.mjs target/wasm32-unknown-unknown/release/canforge.wasm build/large.dbc
+scripts/assemble-site.sh && (cd web-tests && npx playwright test)
 ```
+
+- The browser tests need a one-time setup: `(cd web-tests && npm ci && npx playwright install chromium)`. They run against `site/`, so assemble it after every change to `web/` or the Rust code.
+- `scripts/dev-site.sh` builds the module, assembles `site/` as CI does, and serves it at http://127.0.0.1:8000/.
+- The timing tests hard-fail when a budget is missed. `PERF_BUDGETS=report` prints the miss instead; use it only in CI, and only if its timing proves noisy.
 
 ## Definition of done
 
-- Every command above passes, plus the browser tests once Phase 1 adds them.
+- Every command above passes, including the browser tests and their timing budgets.
 - New behaviour is tested at the right level: a reference test and golden file for anything semantic, a Rust unit test for parsing and formatting, a Playwright test for user flows.
 - `README.md` describes any user-visible change.
 - One commit per feature, with a message that says what changed and why.

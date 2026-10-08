@@ -3,3 +3,7 @@
 /site
 __pycache__/
 *.pyc
+/web-tests/node_modules/
+/web-tests/test-results/
+/web-tests/playwright-report/
+/web-tests/blob-report/

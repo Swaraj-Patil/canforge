@@ -6,6 +6,7 @@ import random
 import unittest
 
 import canforge_ref as ref
+import make_large_dbc
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(HERE)
@@ -225,6 +226,28 @@ class Diff(unittest.TestCase):
     def test_identical(self):
         db = ref.parse_file(EXAMPLE)
         self.assertEqual(ref.verdict(ref.diff(db, ref.parse_file(EXAMPLE))), "identical")
+
+
+class LargeDatabase(unittest.TestCase):
+    def test_deterministic_clean_and_varied(self):
+        text = make_large_dbc.generate()
+        self.assertEqual(text, make_large_dbc.generate())
+        # 500 messages, 5,000 signals, and no lint findings but the CAN FD note.
+        db = make_large_dbc.check(text)
+        sigs = [s for m in db.messages for s in m.signals]
+        present = {
+            "Motorola signals": any(not s.little_endian for s in sigs),
+            "signed signals": any(s.signed and s.value_type == "integer" for s in sigs),
+            "float32 signals": any(s.value_type == "float32" for s in sigs),
+            "64-bit signals": any(s.length == 64 for s in sigs),
+            "29-bit frame IDs": any(m.is_extended for m in db.messages),
+            "CAN FD frames": any(m.dlc == 64 for m in db.messages),
+            "multiplexed messages": any(s.mux == ref.MUX_SWITCH for s in sigs),
+            "value descriptions": any(s.choices for s in sigs),
+            "multi-line comments": any("\n" in s.comment for s in sigs),
+        }
+        for what, found in present.items():
+            self.assertTrue(found, what)
 
 
 if __name__ == "__main__":

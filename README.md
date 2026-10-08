@@ -97,6 +97,8 @@ Bit packing is where CAN tooling goes wrong quietly, especially Motorola byte or
 | **Differential C test** | The generated C packs and unpacks 2,800 random frames and is compared field by field against the reference: 40,117 checks, run under AddressSanitizer and UndefinedBehaviorSanitizer. |
 | **Strict compilation** | The generated C must compile with `-Werror` under 13 warning flags, and the header must compile as C++. |
 | **WebAssembly smoke test** ([`tests/wasm_smoke.mjs`](tests/wasm_smoke.mjs)) | The browser build runs in Node against the same golden files, plus 2,000 repeated calls to catch leaks. |
+| **Browser tests** ([`web-tests/`](web-tests/)) | Playwright drives the assembled site in Chromium: the example bus, flipping a bit and reading the new value, Problems, Generated code and Compare. |
+| **Timing budgets** ([`tests/wasm_perf.mjs`](tests/wasm_perf.mjs), [`web-tests/tests/performance.spec.js`](web-tests/tests/performance.spec.js)) | On a synthetic database of 500 messages and 5,000 signals, loading takes under 500 ms, and a bit flip redraws the page within 50 ms (16 ms on the example bus). Every run prints the measurements. |
 
 CI regenerates the golden files from the reference model on every push and fails if anything drifts.
 
@@ -148,9 +150,11 @@ flowchart LR
 | Path | Contents |
 |---|---|
 | `src/` | The crate: lexer, parser, bit layout, lint, decode, diff, C and Python generators, JSON and SARIF output, CLI, WebAssembly entry points |
-| `reference/` | The Python reference model, its tests, the differential C harness generator and the golden-file generator |
-| `tests/` | Golden-file tests, lint and diff fixtures, the WebAssembly smoke test |
+| `reference/` | The Python reference model, its tests, the differential C harness generator, the golden-file generator and the large synthetic database for timing checks |
+| `tests/` | Golden-file tests, lint and diff fixtures, the WebAssembly smoke test and timing check |
 | `web/` | The browser demo: plain HTML, CSS and JavaScript, no build step |
+| `web-tests/` | Playwright browser tests for the demo; development only, never deployed |
+| `scripts/` | Assemble the site exactly as CI does, and serve it locally |
 | `examples/` | An example powertrain bus and the reusable CI workflow |
 
 ## Building from source
@@ -162,13 +166,24 @@ rustup target add wasm32-unknown-unknown
 cargo build --release --lib --target wasm32-unknown-unknown # the browser module
 ```
 
-To run the browser demo locally, copy the module next to the page and serve the folder:
+To run the browser demo locally, build the module, assemble `site/` the same way CI does, and serve it at http://127.0.0.1:8000/:
 
 ```sh
-mkdir -p site/examples
-cp web/* target/wasm32-unknown-unknown/release/canforge.wasm site/
-cp examples/powertrain.dbc tests/fixtures/diff/v1.dbc tests/fixtures/diff/v2.dbc site/examples/
-python3 -m http.server --directory site 8000
+scripts/dev-site.sh
+```
+
+The browser tests run against that assembled `site/` in Chromium:
+
+```sh
+(cd web-tests && npm ci && npx playwright install chromium)   # once
+scripts/assemble-site.sh && (cd web-tests && npx playwright test)
+```
+
+To check the timing budgets of the WebAssembly module on a large synthetic database:
+
+```sh
+python3 reference/make_large_dbc.py build/large.dbc
+node tests/wasm_perf.mjs target/wasm32-unknown-unknown/release/canforge.wasm build/large.dbc
 ```
 
 The reference model needs only Python 3:
