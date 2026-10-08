@@ -18,6 +18,7 @@ Read this before changing anything that turns bits into values or values into bi
 1. The Rust crate stays dependency-free: `[dependencies]` in `Cargo.toml` stays empty.
 2. `web/` stays build-step-free: plain HTML, CSS and ES modules. No bundler, framework or npm package is shipped to the site. Dev-only tooling (Playwright in `web-tests/`) is fine.
 3. JavaScript never reimplements bit packing, decoding or encoding. All of it goes through the WebAssembly exports, so the browser runs the same verified code as the CLI.
+   - Temporary exception: `writeRaw` in `web/views/frames.js` writes the multiplexer's raw value into the frame when someone picks a page button. It is the one place JavaScript packs bits, and Phase 3 replaces it with `cf_encode_loaded`. Until then, do not copy the pattern, and do not "fix" it with a throwaway export, which rule 5 would then make permanent.
 4. Files people open never leave their browser. No network requests except same-origin assets and Google Fonts. No analytics.
 5. Existing WebAssembly exports (`cf_version`, `cf_analyze`, `cf_decode`, `cf_generate`, `cf_diff`) keep working. Add new exports beside them.
 6. The site assembly (`scripts/assemble-site.sh`, which the CI `wasm` job and `scripts/dev-site.sh` both run) must include every file the page loads. Copy all of `web/` plus the example files, not a hand-picked list.
