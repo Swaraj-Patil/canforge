@@ -15,6 +15,12 @@ export const state = {
   selected: 0,
   // The signal of the selected message open in the inspector, or null.
   inspect: null,
+  // The tab on show, and what this browser keeps of the open file:
+  // 'saved', 'too-large', 'refused', 'forgotten', or null for the example.
+  tab: 'frames',
+  stored: null,
+  // The example's first frame as it opens, so an untouched view keeps a plain address.
+  openingHex: null,
   frames: new Map(),
   animate: true,
   lang: 'c',
@@ -61,5 +67,5 @@ export async function readChosenFile(input) {
   const file = input.files && input.files[0];
   input.value = '';
   if (!file) return null;
-  return { name: file.name, text: await file.text() };
+  return { name: file.name, text: await file.text(), size: file.size };
 }

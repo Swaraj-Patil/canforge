@@ -1,8 +1,9 @@
 // Frames view: the message list, the bit grid of the chosen message, and
 // its decoded values.
-import { $, currentMessage, state } from '../state.js';
+import { $, currentMessage, flash, setStatus, state } from '../state.js';
 import { colorFor, escapeHtml, formatPhysical, parseHexInput, plural, sentence, tint, toHex } from '../format.js';
 import { renderInspector } from './inspector.js';
+import { linkUrl, writeLink } from '../link.js';
 
 // Plausible frames for the example bus, so the first view shows real values.
 const EXAMPLE_FRAMES = {
@@ -127,6 +128,7 @@ export function renderMessage() {
           <input id="hex-input" spellcheck="false" autocomplete="off" aria-describedby="hex-error">
           <button type="button" class="button" id="random-frame">Random</button>
           <button type="button" class="button" id="clear-frame">Clear</button>
+          ${state.isExample ? '<button type="button" class="button" id="copy-link">Copy link</button>' : ''}
         </div>
         <p id="hex-error" class="hex-error" hidden></p>
         <div id="decoded"></div>
@@ -316,6 +318,25 @@ function refreshFrame(fromInput) {
     $('hex-error').hidden = true;
   }
   state.animate = false;
+  writeLink();
+}
+
+/** Put new bytes in the selected message's frame, as a link asks. */
+export function setCurrentBytes(bytes) {
+  const msg = currentMessage();
+  if (!msg) return;
+  frameFor(msg).set(bytes);
+  refreshFrame(false);
+}
+
+// Only the example bus has links; see link.js.
+async function copyLink(button) {
+  try {
+    await navigator.clipboard.writeText(linkUrl());
+    flash(button, 'Link copied');
+  } catch {
+    setStatus('The browser blocked copying. The address bar shows the same link.', true);
+  }
 }
 
 // The signal under the pointer or keyboard focus, if any.
@@ -395,6 +416,10 @@ export function bindFrames() {
       // the pattern, and do not swap it for a throwaway export.
       if (muxSig) writeRaw(bytes, muxSig, Number(page.dataset.page));
       refreshFrame(false);
+      return;
+    }
+    if (e.target.id === 'copy-link') {
+      copyLink(e.target);
       return;
     }
     if (e.target.id === 'random-frame') {
