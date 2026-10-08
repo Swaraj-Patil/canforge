@@ -1,0 +1,6 @@
+// expect: W004
+VERSION ""
+BU_: A B
+BO_ 100 Msg: 8 A
+ SG_ EngineSpeed : 0|8@1+ (1,0) [0|255] "" B
+ SG_ Engine_Speed : 8|8@1+ (1,0) [0|255] "" B

@@ -1,0 +1,18 @@
+VERSION "2"
+BU_: VCU BMS GW
+BO_ 256 Status: 8 VCU
+ SG_ Speed : 0|16@1+ (0.01,0) [0|655.35] "kph" GW
+ SG_ Gear : 16|3@1+ (1,0) [0|7] "" GW
+ SG_ DriveMode : 20|2@1+ (1,0) [0|3] "" GW
+ SG_ Counter : 60|4@1+ (1,0) [0|15] "" GW
+ SG_ Brake : 24|1@1+ (1,0) [0|1] "" GW
+BO_ 512 Battery: 12 BMS
+ SG_ Voltage : 7|16@0+ (0.02,0) [0|1310.7] "V" VCU
+ SG_ Current : 23|16@0- (0.05,0) [-1000|1000] "A" VCU
+ SG_ Temp : 39|8@0- (1,0) [-40|85] "degC" VCU
+BO_ 1040 Charger: 8 GW
+ SG_ Limit : 0|16@1+ (0.1,0) [0|6553.5] "A" BMS
+BO_ 1280 Diagnostics: 8 GW
+ SG_ ErrorCode : 0|16@1+ (1,0) [0|65535] "" VCU
+CM_ BO_ 256 "Vehicle status, sent every 10 ms.";
+VAL_ 256 Gear 0 "Park" 1 "Reverse" 2 "Neutral" 3 "Drive" 4 "Low" ;

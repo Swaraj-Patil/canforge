@@ -1,0 +1,85 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>canforge: check, decode and generate code from CAN databases</title>
+<meta name="description" content="Check a CAN database (DBC file), see where every signal sits in its frame, decode frames, compare revisions, and generate embedded C. Runs entirely in your browser.">
+<meta property="og:title" content="canforge">
+<meta property="og:description" content="A Rust toolchain for CAN databases: lint, decode, diff and generate verified embedded C. Try it in the browser.">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Crect width='16' height='16' rx='3' fill='%231D6B47'/%3E%3Cpath d='M3 5h10M3 8h6M3 11h8' stroke='%23F3F5F2' stroke-width='1.6'/%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans+Condensed:wght@500;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+<link rel="stylesheet" href="style.css">
+<script type="module" src="app.js"></script>
+</head>
+<body>
+<header class="masthead">
+  <div class="brand">
+    <h1>canforge</h1>
+    <p class="tagline">Check a CAN database, see where every signal sits in its frame, and generate the C that packs it. Everything runs in your browser; your file never leaves it.</p>
+  </div>
+  <div class="actions">
+    <button id="use-example" class="button" type="button">Use the example bus</button>
+    <label class="button primary" for="file-input">Open a DBC file</label>
+    <input id="file-input" type="file" accept=".dbc,text/plain" hidden>
+  </div>
+</header>
+
+<nav class="tabs" role="tablist" aria-label="Views">
+  <button role="tab" type="button" id="tab-frames" aria-selected="true" aria-controls="view-frames">Frames</button>
+  <button role="tab" type="button" id="tab-problems" aria-selected="false" aria-controls="view-problems">Problems <span id="problem-count" class="count"></span></button>
+  <button role="tab" type="button" id="tab-code" aria-selected="false" aria-controls="view-code">Generated code</button>
+  <button role="tab" type="button" id="tab-compare" aria-selected="false" aria-controls="view-compare">Compare revisions</button>
+</nav>
+
+<main>
+  <p id="status" class="status" role="status" aria-live="polite"></p>
+
+  <section id="view-frames" role="tabpanel" aria-labelledby="tab-frames" class="frames-view">
+    <aside class="rail" aria-label="Messages">
+      <div id="db-summary" class="db-summary"></div>
+      <ul id="message-list" class="message-list"></ul>
+    </aside>
+    <div id="message-detail" class="detail"></div>
+  </section>
+
+  <section id="view-problems" role="tabpanel" aria-labelledby="tab-problems" hidden>
+    <div id="problems"></div>
+  </section>
+
+  <section id="view-code" role="tabpanel" aria-labelledby="tab-code" hidden>
+    <div class="code-controls">
+      <div class="segmented" role="group" aria-label="Language">
+        <button type="button" data-lang="c" aria-pressed="true">C</button>
+        <button type="button" data-lang="python" aria-pressed="false">Python</button>
+      </div>
+      <label class="field">Name prefix <input id="prefix" spellcheck="false" autocomplete="off"></label>
+      <div class="code-actions">
+        <button id="copy-code" class="button" type="button">Copy</button>
+        <button id="download-code" class="button" type="button">Download</button>
+      </div>
+    </div>
+    <div id="code-files" class="file-tabs" role="group" aria-label="Files"></div>
+    <p id="code-note" class="muted"></p>
+    <pre id="code-output" class="code" tabindex="0"></pre>
+  </section>
+
+  <section id="view-compare" role="tabpanel" aria-labelledby="tab-compare" hidden>
+    <p class="lede">Load two revisions of a DBC file to see which changes would make existing decoders misread frames.</p>
+    <div class="compare-inputs">
+      <label class="button">Choose old revision<input type="file" id="old-file" accept=".dbc,text/plain" hidden></label>
+      <label class="button">Choose new revision<input type="file" id="new-file" accept=".dbc,text/plain" hidden></label>
+      <button id="example-diff" class="button" type="button">Use the example revisions</button>
+    </div>
+    <p id="compare-files" class="muted"></p>
+    <div id="compare-result"></div>
+  </section>
+</main>
+
+<footer class="footer">
+  <p>canforge <span id="version"></span> is a Rust toolchain for CAN databases, compiled to WebAssembly for this page. Built by <a href="https://swarajpatil.vercel.app/">Swaraj Patil</a>. <a href="https://github.com/Swaraj-Patil/canforge">Source and documentation on GitHub</a>.</p>
+</footer>
+</body>
+</html>

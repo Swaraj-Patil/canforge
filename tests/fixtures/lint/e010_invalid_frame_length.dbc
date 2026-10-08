@@ -1,0 +1,5 @@
+// expect: E010
+VERSION ""
+BU_: A B
+BO_ 100 Msg: 10 A
+ SG_ X : 0|8@1+ (1,0) [0|255] "" B

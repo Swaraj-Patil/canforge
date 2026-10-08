@@ -1,0 +1,6 @@
+// expect: E012
+VERSION ""
+BU_: A B
+BO_ 100 Msg: 8 A
+ SG_ Page M : 0|2@1+ (1,0) [0|3] "" B
+ SG_ X m5 : 8|8@1+ (1,0) [0|255] "" B

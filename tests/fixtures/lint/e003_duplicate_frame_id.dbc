@@ -1,0 +1,7 @@
+// expect: E003
+VERSION ""
+BU_: A B
+BO_ 100 First: 8 A
+ SG_ X : 0|8@1+ (1,0) [0|255] "" B
+BO_ 100 Second: 8 A
+ SG_ Y : 0|8@1+ (1,0) [0|255] "" B

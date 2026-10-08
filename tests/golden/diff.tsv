@@ -1,0 +1,14 @@
+# verdict	breaking
+caution	signal-unit-changed	Status.Speed unit changed: "km/h" -> "kph"
+compatible	signal-choices-added	Status.Gear value descriptions added for 4
+breaking	signal-layout-changed	Status.Counter layout changed: start bit 56 -> 60
+caution	signal-renamed	Status.Mode renamed to DriveMode
+compatible	signal-added	Status.Brake added at 24|1@1+
+compatible	comment-changed	Status comment changed
+caution	frame-length-increased	Battery length increased from 8 to 12 bytes
+breaking	signal-scaling-changed	Battery.Voltage scaling changed: factor 0.01 -> 0.02
+compatible	signal-range-widened	Battery.Voltage range widened: [0.0|655.35] -> [0.0|1310.7]
+caution	signal-range-narrowed	Battery.Current range narrowed: [-1638.4|1638.35] -> [-1000.0|1000.0]
+breaking	message-removed	Legacy (0x300) removed
+breaking	frame-id-changed	Charger frame ID changed from 0x400 to 0x410
+compatible	message-added	Diagnostics (0x500) added

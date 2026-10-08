@@ -1,0 +1,131 @@
+VERSION "1.4.0"
+
+
+NS_ :
+	NS_DESC_
+	CM_
+	BA_DEF_
+	BA_
+	VAL_
+	CAT_DEF_
+	CAT_
+	FILTER
+	BA_DEF_DEF_
+	EV_DATA_
+	ENVVAR_DATA_
+	SGTYPE_
+	SGTYPE_VAL_
+	BA_DEF_SGTYPE_
+	BA_SGTYPE_
+	SIG_TYPE_REF_
+	VAL_TABLE_
+	SIG_GROUP_
+	SIG_VALTYPE_
+	SIGTYPE_VALTYPE_
+	BO_TX_BU_
+	BA_DEF_REL_
+	BA_REL_
+	BA_DEF_DEF_REL_
+	BU_SG_REL_
+	BU_EV_REL_
+	BU_BO_REL_
+	SG_MUL_VAL_
+
+BS_:
+
+BU_: VCU BMS INVERTER GATEWAY DISPLAY
+
+VAL_TABLE_ OnOff 1 "On" 0 "Off" ;
+
+
+BO_ 256 VehicleStatus: 8 VCU
+ SG_ VehicleSpeed : 0|16@1+ (0.01,0) [0|655.35] "km/h"  GATEWAY,DISPLAY
+ SG_ GearPosition : 16|3@1+ (1,0) [0|7] ""  GATEWAY,DISPLAY
+ SG_ BrakePressed : 19|1@1+ (1,0) [0|1] ""  GATEWAY
+ SG_ DriveMode : 20|2@1+ (1,0) [0|3] ""  DISPLAY
+ SG_ AcceleratorPedal : 24|8@1+ (0.4,0) [0|100] "%"  INVERTER
+ SG_ SteeringAngle : 32|16@1- (0.1,0) [-3276.8|3276.7] "deg"  GATEWAY
+ SG_ RollingCounter : 56|4@1+ (1,0) [0|15] ""  GATEWAY
+ SG_ Checksum : 60|4@1+ (1,0) [0|15] ""  GATEWAY
+
+BO_ 512 BatteryStatus: 8 BMS
+ SG_ PackVoltage : 7|16@0+ (0.01,0) [0|655.35] "V"  VCU,GATEWAY
+ SG_ PackCurrent : 23|16@0- (0.05,0) [-1638.4|1638.35] "A"  VCU,GATEWAY
+ SG_ StateOfCharge : 39|8@0+ (0.5,0) [0|100] "%"  VCU,DISPLAY
+ SG_ MaxCellTemp : 47|8@0- (1,0) [-40|85] "degC"  VCU
+ SG_ ContactorState : 55|2@0+ (1,0) [0|3] ""  VCU
+ SG_ BalancingActive : 53|1@0+ (1,0) [0|1] ""  VCU
+ SG_ CellCount : 52|5@0+ (1,0) [0|31] ""  VCU
+
+BO_ 768 InverterTelemetry: 8 INVERTER
+ SG_ PageIndex M : 0|8@1+ (1,0) [0|2] ""  VCU
+ SG_ MotorSpeed m0 : 8|16@1- (1,0) [-20000|20000] "rpm"  VCU
+ SG_ MotorTorque m0 : 24|16@1- (0.1,0) [-500|500] "Nm"  VCU
+ SG_ StatorTemp m1 : 8|8@1+ (1,-40) [-40|215] "degC"  VCU
+ SG_ IgbtTemp m1 : 16|8@1+ (1,-40) [-40|215] "degC"  VCU
+ SG_ DcLinkVoltage m2 : 8|16@1+ (0.1,0) [0|1000] "V"  VCU
+ SG_ FaultCode m2 : 24|16@1+ (1,0) [0|65535] ""  VCU
+ SG_ InverterState : 56|3@1+ (1,0) [0|7] ""  VCU
+
+BO_ 2566869221 ChargerLimits: 8 GATEWAY
+ SG_ ChargeCurrentLimit : 0|16@1+ (0.1,0) [0|6553.5] "A"  BMS
+ SG_ ChargeVoltageLimit : 16|16@1+ (0.1,0) [0|6553.5] "V"  BMS
+ SG_ ChargerEnable : 32|1@1+ (1,0) [0|1] ""  BMS
+
+BO_ 1024 ThermalSensors: 8 BMS
+ SG_ CoolantFlow : 0|32@1- (1,0) [0|100] "L/min"  VCU
+ SG_ AmbientTemp : 32|32@1- (1,0) [-50|80] "degC"  VCU
+
+BO_ 1536 WheelSpeeds: 8 GATEWAY
+ SG_ WheelSpeedFL : 7|12@0+ (0.1,0) [0|409.5] "km/h"  VCU
+ SG_ WheelSpeedFR : 11|12@0+ (0.1,0) [0|409.5] "km/h"  VCU
+ SG_ WheelSpeedRL : 31|12@0+ (0.1,0) [0|409.5] "km/h"  VCU
+ SG_ WheelSpeedRR : 35|12@0+ (0.1,0) [0|409.5] "km/h"  VCU
+ SG_ YawRate : 48|14@1- (0.01,0) [-81.92|81.91] "deg/s"  VCU
+ SG_ WheelSpeedValid : 62|2@1+ (1,0) [0|3] ""  VCU
+
+BO_ 1280 DiagnosticFD: 64 GATEWAY
+ SG_ Odometer : 0|32@1+ (0.1,0) [0|429496729.5] "km"  DISPLAY
+ SG_ TripId : 32|32@1+ (1,0) [0|4294967295] ""  DISPLAY
+ SG_ SerialNumber : 64|64@1+ (1,0) [0|0] ""  DISPLAY
+ SG_ FirmwareCrc : 128|32@1+ (1,0) [0|0] ""  DISPLAY
+ SG_ LifetimeEnergy : 191|48@0+ (0.001,0) [0|0] "kWh"  DISPLAY
+ SG_ TimestampNs : 256|64@1- (1,0) [0|0] "ns"  DISPLAY
+
+BO_ 3221225472 VECTOR__INDEPENDENT_SIG_MSG: 0 Vector__XXX
+ SG_ OrphanSignal : 0|8@1+ (1,0) [0|0] "" Vector__XXX
+
+
+
+CM_ "Example powertrain and body bus used to demonstrate canforge.";
+CM_ BU_ VCU "Vehicle control unit.";
+CM_ BU_ BMS "Battery management system.";
+CM_ BO_ 256 "Core vehicle state, broadcast every 10 ms.";
+CM_ SG_ 256 VehicleSpeed "Vehicle speed derived from wheel speeds.";
+CM_ SG_ 256 Checksum "XOR of the first 7 bytes, low nibble.";
+CM_ BO_ 512 "Pack-level battery measurements.";
+CM_ SG_ 512 PackCurrent "Positive values discharge the pack,
+negative values charge it.";
+CM_ BO_ 768 "Inverter telemetry. PageIndex selects which signals are present.";
+CM_ BO_ 2566869221 "J1939-style charger limits on a 29-bit identifier.";
+CM_ SG_ 1024 CoolantFlow "IEEE 754 single-precision value.";
+CM_ BO_ 1280 "Diagnostic snapshot carried on a 64-byte CAN FD frame.";
+BA_DEF_ BO_  "GenMsgCycleTime" INT 0 10000;
+BA_DEF_ SG_  "GenSigStartValue" INT 0 100000;
+BA_DEF_  "BusType" STRING ;
+BA_DEF_DEF_  "GenMsgCycleTime" 100;
+BA_DEF_DEF_  "GenSigStartValue" 0;
+BA_DEF_DEF_  "BusType" "CAN FD";
+BA_ "BusType" "CAN FD";
+BA_ "GenMsgCycleTime" BO_ 256 10;
+BA_ "GenMsgCycleTime" BO_ 512 100;
+BA_ "GenSigStartValue" SG_ 256 GearPosition 0;
+VAL_ 256 GearPosition 0 "Park" 1 "Reverse" 2 "Neutral" 3 "Drive" 7 "Invalid" ;
+VAL_ 256 DriveMode 0 "Eco" 1 "Normal" 2 "Sport" 3 "Track" ;
+VAL_ 512 ContactorState 0 "Open" 1 "Precharge" 2 "Closed" 3 "Fault" ;
+VAL_ 768 PageIndex 0 "Speed and torque" 1 "Temperatures" 2 "DC link and faults" ;
+VAL_ 768 InverterState 0 "Off" 1 "Standby" 2 "Running" 3 "Derated" 4 "Fault" ;
+VAL_ 1536 WheelSpeedValid 0 "None" 1 "Front only" 2 "Rear only" 3 "All" ;
+SIG_VALTYPE_ 1024 CoolantFlow : 1;
+SIG_VALTYPE_ 1024 AmbientTemp : 1;
+

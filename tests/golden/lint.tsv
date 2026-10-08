@@ -1,0 +1,23 @@
+# file	rule	severity	line	message
+lint/e001_signal_overlap.dbc	E001	error	6	signals 'X' and 'Y' in message 'Msg' overlap at bit 4, 5, 6, 7
+lint/e002_signal_out_of_frame.dbc	E002	error	5	signal 'X' extends beyond the 2-byte frame of message 'Msg'
+lint/e003_duplicate_frame_id.dbc	E003	error	6	frame ID 0x064 is used by both 'First' and 'Second'
+lint/e004_duplicate_name.dbc	E004	error	7	message name 'Msg' is defined more than once
+lint/e004_duplicate_name.dbc	E004	error	6	signal name 'X' is defined more than once in message 'Msg'
+lint/e005_zero_factor.dbc	E005	error	5	signal 'X' has a scaling factor of 0
+lint/e006_invalid_length.dbc	E006	error	5	signal 'Empty' has length 0; lengths must be between 1 and 64 bits
+lint/e006_invalid_length.dbc	E006	error	6	signal 'Huge' has length 65; lengths must be between 1 and 64 bits
+lint/e007_frame_id_out_of_range.dbc	E007	error	4	frame ID 0x800 exceeds the 11-bit standard range; set bit 31 to mark it extended or fix the ID
+lint/e008_multiplexed_without_multiplexer.dbc	E008	error	5	signal 'X' is multiplexed (m1) but message 'Msg' has no multiplexer signal
+lint/e009_multiple_multiplexers.dbc	E009	error	6	message 'Msg' has more than one multiplexer ('First' and 'Second')
+lint/e010_invalid_frame_length.dbc	E010	error	4	message 'Msg' has length 10; CAN frames must be 0-8 bytes and CAN FD frames 12, 16, 20, 24, 32, 48 or 64
+lint/e011_float_length_mismatch.dbc	E011	error	5	signal 'X' is declared float32 but is 16 bits long (expected 32)
+lint/e012_multiplex_value_out_of_range.dbc	E012	error	6	signal 'X' uses multiplexer value 5, which multiplexer 'Page' cannot represent
+lint/i001_unused_node.dbc	I001	info	3	node 'C' is declared but never transmits or receives
+lint/i002_can_fd_frame.dbc	I002	info	4	message 'Msg' is 64 bytes long, so it needs CAN FD
+lint/w001_range_not_representable.dbc	W001	warning	5	signal 'X' declares range [0.0|300.0] but its 8-bit raw value can only represent [0.0|255.0]
+lint/w002_min_greater_than_max.dbc	W002	warning	5	signal 'X' has minimum 10.0 greater than maximum 5.0
+lint/w003_unknown_node.dbc	W003	warning	5	receiver 'C' of signal 'X' is not declared in BU_
+lint/w004_c_name_collision.dbc	W004	warning	6	signals 'EngineSpeed' and 'Engine_Speed' in message 'Msg' both map to C identifier 'engine_speed'
+lint/w005_choice_out_of_range.dbc	W005	warning	5	value description 7 ("Impossible") for signal 'X' is outside its raw range [0|3]
+examples/powertrain.dbc	I002	info	87	message 'DiagnosticFD' is 64 bytes long, so it needs CAN FD

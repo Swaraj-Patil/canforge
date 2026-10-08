@@ -1,0 +1,44 @@
+# Copy this file to .github/workflows/dbc-check.yml in a repository that keeps
+# DBC files under version control. On every pull request it lints the changed
+# database, shows findings inline on the diff, and fails if the change would
+# make existing decoders misread frames.
+#
+# Set DBC to the path of your database.
+
+name: DBC check
+
+on:
+  pull_request:
+    paths: ["**/*.dbc"]
+
+permissions:
+  contents: read
+  security-events: write
+
+env:
+  DBC: path/to/bus.dbc
+
+jobs:
+  dbc:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Install canforge
+        run: cargo install --git https://github.com/Swaraj-Patil/canforge
+      - name: Lint (fails on errors)
+        run: canforge lint "$DBC"
+      - name: Produce code-scanning annotations
+        if: always()
+        run: canforge lint "$DBC" --format sarif > canforge.sarif || true
+      - uses: github/codeql-action/upload-sarif@v3
+        if: always()
+        with:
+          sarif_file: canforge.sarif
+          category: canforge
+      - name: Block breaking changes against the base branch
+        run: |
+          git show "origin/${{ github.base_ref }}:$DBC" > base.dbc
+          canforge diff base.dbc "$DBC"

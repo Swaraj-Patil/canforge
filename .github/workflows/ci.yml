@@ -1,0 +1,130 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  reference:
+    name: Reference model and generated code
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Reference model tests
+        working-directory: reference
+        run: python3 -m unittest -v test_reference
+      - name: Golden files are up to date with the reference model
+        run: |
+          python3 reference/make_golden.py
+          git diff --exit-code tests/golden
+      - name: Generated C compiles warning-free under strict flags
+        run: |
+          mkdir -p build/c
+          cp tests/golden/powertrain.h tests/golden/powertrain.c build/c/
+          cd build/c
+          gcc -std=c99 -Wall -Wextra -Wpedantic -Wconversion -Wsign-conversion -Wshadow -Wcast-qual \
+              -Wstrict-prototypes -Wmissing-prototypes -Wundef -Wdouble-promotion -Wfloat-conversion \
+              -Wswitch-default -Werror -O2 -c powertrain.c
+          printf '#include "powertrain.h"\nint main(void){return 0;}\n' > cpp_check.cpp
+          g++ -std=c++11 -Wall -Wextra -Werror -c cpp_check.cpp
+      - name: Generated C matches bit-by-bit packing on random frames (ASan + UBSan)
+        run: |
+          python3 reference/harness.py c examples/powertrain.dbc powertrain build/c 400
+          cd build/c
+          gcc -std=c99 -Wall -Wextra -Werror -O1 -g -fsanitize=address,undefined \
+              -fno-sanitize-recover=all -o harness powertrain_harness.c powertrain.c
+          ./harness
+      - name: Generated Python matches the reference decoder
+        run: python3 reference/harness.py py examples/powertrain.dbc tests/golden/powertrain.py 600
+
+  rust:
+    name: Rust build and tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo build --release
+      - run: cargo test
+      - name: Command-line smoke test
+        run: |
+          cf=./target/release/canforge
+          $cf --version
+          $cf info examples/powertrain.dbc
+          $cf lint examples/powertrain.dbc
+          $cf lint examples/powertrain.dbc --format sarif > /dev/null
+          $cf layout examples/powertrain.dbc --message WheelSpeeds
+          $cf decode examples/powertrain.dbc 0x100 e8 03 03 5a 18 fc 00 05
+          if $cf diff tests/fixtures/diff/v1.dbc tests/fixtures/diff/v2.dbc; then
+            echo "diff should exit 1 on breaking changes"; exit 1
+          fi
+          if $cf lint tests/fixtures/lint/e001_signal_overlap.dbc; then
+            echo "lint should exit 1 on errors"; exit 1
+          fi
+      - name: CLI output is byte-identical to the reference model
+        run: |
+          mkdir -p build/gen
+          ./target/release/canforge gen c examples/powertrain.dbc -o build/gen
+          ./target/release/canforge gen python examples/powertrain.dbc -o build/gen
+          diff -u tests/golden/powertrain.h build/gen/powertrain.h
+          diff -u tests/golden/powertrain.c build/gen/powertrain.c
+          diff -u tests/golden/powertrain.py build/gen/powertrain.py
+      - name: Clippy (advisory)
+        continue-on-error: true
+        run: cargo clippy --all-targets
+
+  wasm:
+    name: WebAssembly build and site
+    runs-on: ubuntu-latest
+    needs: rust
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-unknown-unknown
+      - uses: Swatinem/rust-cache@v2
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - run: cargo build --release --lib --target wasm32-unknown-unknown
+      - name: Assemble the site
+        run: |
+          mkdir -p site/examples
+          cp web/index.html web/style.css web/app.js web/canforge.js web/package.json site/
+          cp target/wasm32-unknown-unknown/release/canforge.wasm site/
+          cp examples/powertrain.dbc tests/fixtures/diff/v1.dbc tests/fixtures/diff/v2.dbc site/examples/
+          ls -la site
+      - name: Run the WebAssembly module against the golden files
+        run: node tests/wasm_smoke.mjs site/canforge.wasm
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: site
+
+  deploy:
+    name: Deploy the browser demo
+    if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+    needs: [reference, wasm]
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4

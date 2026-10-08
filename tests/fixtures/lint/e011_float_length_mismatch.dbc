@@ -1,0 +1,6 @@
+// expect: E011
+VERSION ""
+BU_: A B
+BO_ 100 Msg: 8 A
+ SG_ X : 0|16@1- (1,0) [0|0] "" B
+SIG_VALTYPE_ 100 X : 1;

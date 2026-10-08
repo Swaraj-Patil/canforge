@@ -1,0 +1,31 @@
+[package]
+name = "canforge"
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.70"
+description = "Lint, visualize, decode, diff and generate embedded C from CAN databases (DBC files)."
+license = "MIT"
+repository = "https://github.com/Swaraj-Patil/canforge"
+homepage = "https://swaraj-patil.github.io/canforge/"
+readme = "README.md"
+keywords = ["can", "dbc", "automotive", "embedded", "codegen"]
+categories = ["command-line-utilities", "embedded", "development-tools"]
+exclude = ["web/", "reference/", ".github/"]
+
+# Deliberately no dependencies: the same code builds as a native CLI and as a
+# small WebAssembly module, and there is nothing to audit but this crate.
+[dependencies]
+
+[lib]
+# rlib for the CLI and tests, cdylib for the WebAssembly build.
+crate-type = ["rlib", "cdylib"]
+
+[[bin]]
+name = "canforge"
+path = "src/main.rs"
+
+[profile.release]
+opt-level = "s"
+lto = true
+codegen-units = 1
+panic = "abort"
