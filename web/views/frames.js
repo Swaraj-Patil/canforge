@@ -168,7 +168,11 @@ function pagesHtml(msg, result) {
   return `<div class="pages" role="group" aria-label="${escapeHtml(muxSig.name)}"><span>${escapeHtml(muxSig.name)}</span>${buttons}</div>`;
 }
 
-function matrixHtml(msg, bytes, active) {
+// Runs of this many neighbouring bits of one signal, or more, carry its name.
+const NAMED_RUN = 3;
+
+// Which active signal owns each bit of the frame, keyed by byte * 8 + bit.
+function ownersOf(msg, active) {
   const owner = new Map();
   msg.signals.forEach((sig, si) => {
     if (!active.has(si)) return;
@@ -176,18 +180,48 @@ function matrixHtml(msg, bytes, active) {
       if (byte < msg.dlc) owner.set(byte * 8 + bit, { si, rawBit });
     });
   });
-  const cells = ['<div></div>'];
-  for (let bit = 7; bit >= 0; bit--) cells.push(`<div class="colhead" aria-hidden="true">${bit}</div>`);
+  return owner;
+}
+
+function bitLabel(msg, byte, bit, on, o) {
+  const label = `Byte ${byte}, bit ${bit} is ${on}`;
+  return o ? `${label}, bit ${o.rawBit} of ${msg.signals[o.si].name}` : label;
+}
+
+// Every cell has an explicit grid position, so the name labels can lie on
+// top of the bits. Bit b of a byte sits in column 9 - b: bit 7 at the left.
+function matrixHtml(msg, bytes, owner) {
+  const cells = ['<div style="grid-area:1/1"></div>'];
+  for (let bit = 7; bit >= 0; bit--) {
+    cells.push(`<div class="colhead" style="grid-area:1/${9 - bit}" aria-hidden="true">${bit}</div>`);
+  }
+  cells.push('<div class="colhead byte-value" style="grid-area:1/10" aria-hidden="true">Hex</div>');
+  cells.push('<div class="colhead byte-value" style="grid-area:1/11" aria-hidden="true">Dec</div>');
+  const names = [];
   for (let byte = 0; byte < msg.dlc; byte++) {
-    cells.push(`<div class="rowhead">Byte ${byte}</div>`);
+    const row = byte + 2;
+    // Runs of neighbouring bits that belong to one signal, long enough to name.
+    for (let bit = 7; bit >= 0; ) {
+      const o = owner.get(byte * 8 + bit);
+      let low = bit;
+      while (o && low > 0 && owner.get(byte * 8 + low - 1)?.si === o.si) low--;
+      if (o && bit - low + 1 >= NAMED_RUN) {
+        names.push(
+          `<div class="run" data-sig="${o.si}" style="grid-area:${row}/${9 - bit}/${row + 1}/${10 - low};--row:${byte}" aria-hidden="true">` +
+            `<span>${escapeHtml(msg.signals[o.si].name)}</span></div>`,
+        );
+      }
+      bit = low - 1;
+    }
+    cells.push(`<div class="rowhead" style="grid-area:${row}/1">Byte ${byte}</div>`);
     for (let bit = 7; bit >= 0; bit--) {
       const k = byte * 8 + bit;
       const on = (bytes[byte] >> bit) & 1;
       const o = owner.get(k);
       let cls = 'bit' + (on ? ' on' : '');
-      let style = `--row:${byte}`;
+      let style = `grid-area:${row}/${9 - bit};--row:${byte}`;
       let sigAttr = '';
-      let label = `Byte ${byte}, bit ${bit} is ${on}`;
+      const label = bitLabel(msg, byte, bit, on, o);
       if (o) {
         const sig = msg.signals[o.si];
         const c = colorFor(o.si);
@@ -195,14 +229,40 @@ function matrixHtml(msg, bytes, active) {
         sigAttr = ` data-sig="${o.si}"`;
         if (sig.length > 1 && o.rawBit === sig.length - 1) cls += ' msb';
         if (sig.length > 1 && o.rawBit === 0) cls += ' lsb';
-        label += `, bit ${o.rawBit} of ${sig.name}`;
       }
       cells.push(
         `<button type="button" class="${cls}" data-k="${k}"${sigAttr} style="${style}" aria-label="${escapeHtml(label)}" title="${escapeHtml(label)}">${on}</button>`,
       );
     }
+    const value = bytes[byte];
+    cells.push(
+      `<div class="byte-value" style="grid-area:${row}/10"><span class="visually-hidden">Byte ${byte} is hex </span>${value.toString(16).padStart(2, '0')}</div>`,
+      `<div class="byte-value dec" style="grid-area:${row}/11"><span class="visually-hidden">, decimal </span>${value}</div>`,
+    );
   }
-  return cells.join('');
+  // After the bits, so the labels paint on top of them.
+  return cells.join('') + names.join('');
+}
+
+// Bring a grid up to date with new bytes when the same signals still own the
+// same bits: only the bits that changed, and the byte values, are touched.
+function patchMatrix(matrix, msg, bytes, owner) {
+  for (const cell of matrix.querySelectorAll('.bit')) {
+    const k = Number(cell.dataset.k);
+    const on = (bytes[k >> 3] >> (k & 7)) & 1;
+    if (cell.classList.contains('on') === (on === 1)) continue;
+    cell.classList.toggle('on', on === 1);
+    cell.textContent = String(on);
+    const label = bitLabel(msg, k >> 3, k & 7, on, owner.get(k));
+    cell.setAttribute('aria-label', label);
+    cell.title = label;
+  }
+  // Hex and decimal cells alternate, row by row; their text follows the hidden words.
+  const values = matrix.querySelectorAll('.byte-value:not(.colhead)');
+  for (let byte = 0; byte < msg.dlc; byte++) {
+    values[2 * byte].lastChild.nodeValue = bytes[byte].toString(16).padStart(2, '0');
+    values[2 * byte + 1].lastChild.nodeValue = String(bytes[byte]);
+  }
 }
 
 function tableHtml(msg, result) {
@@ -233,11 +293,21 @@ function refreshFrame(fromInput) {
   const bytes = frameFor(msg);
   const result = state.cf.decodeLoaded(msg.id_hex, toHex(bytes));
   const active = activeSignals(msg, result);
+  const owner = ownersOf(msg, active);
   $('pages').innerHTML = pagesHtml(msg, result);
   const matrix = $('matrix');
-  matrix.classList.toggle('clock', state.animate);
-  matrix.innerHTML = matrixHtml(msg, bytes, active);
+  // Rebuild the grid when it is new or another multiplexer page now owns its
+  // bits; otherwise patch it, which keeps a flip fast on 64-byte frames.
+  const layout = [...active].sort((a, b) => a - b).join(',');
+  if (state.animate || matrix.dataset.layout !== layout) {
+    matrix.classList.toggle('clock', state.animate);
+    matrix.innerHTML = matrixHtml(msg, bytes, owner);
+    matrix.dataset.layout = layout;
+  } else {
+    patchMatrix(matrix, msg, bytes, owner);
+  }
   $('decoded').innerHTML = tableHtml(msg, result);
+  if (pointedAt !== null) highlight(pointedAt);
   if (!fromInput) {
     $('hex-input').value = toHex(bytes);
     $('hex-input').removeAttribute('aria-invalid');
@@ -246,8 +316,12 @@ function refreshFrame(fromInput) {
   state.animate = false;
 }
 
+// The signal under the pointer or keyboard focus, if any.
+let pointedAt = null;
+
 function highlight(si) {
-  for (const cell of document.querySelectorAll('#matrix .bit')) {
+  pointedAt = si;
+  for (const cell of document.querySelectorAll('#matrix .bit, #matrix .run')) {
     cell.classList.toggle('dim', si !== null && cell.dataset.sig !== String(si));
   }
   for (const row of document.querySelectorAll('#decoded tr[data-sig]')) {
