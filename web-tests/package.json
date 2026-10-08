@@ -1,0 +1,12 @@
+{
+  "name": "canforge-web-tests",
+  "private": true,
+  "type": "module",
+  "description": "Browser tests for the canforge demo. Development only: nothing here is deployed.",
+  "scripts": {
+    "test": "playwright test"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.63.0"
+  }
+}

@@ -88,9 +88,11 @@ jobs:
         run: cargo clippy --all-targets
 
   wasm:
-    name: WebAssembly build and site
+    name: WebAssembly build, site and browser tests
     runs-on: ubuntu-latest
     needs: rust
+    # Timing budgets fail the build. If this runner's timing proves too noisy,
+    # set PERF_BUDGETS: report here; the measured medians are printed either way.
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
@@ -100,16 +102,35 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: "20"
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
       - run: cargo build --release --lib --target wasm32-unknown-unknown
       - name: Assemble the site
-        run: |
-          mkdir -p site/examples
-          cp web/index.html web/style.css web/app.js web/canforge.js web/package.json site/
-          cp target/wasm32-unknown-unknown/release/canforge.wasm site/
-          cp examples/powertrain.dbc tests/fixtures/diff/v1.dbc tests/fixtures/diff/v2.dbc site/examples/
-          ls -la site
+        run: scripts/assemble-site.sh
       - name: Run the WebAssembly module against the golden files
         run: node tests/wasm_smoke.mjs site/canforge.wasm
+      - name: Time the WebAssembly module on a 5,000-signal database
+        run: |
+          python3 reference/make_large_dbc.py build/large.dbc
+          node tests/wasm_perf.mjs site/canforge.wasm build/large.dbc
+      - name: Install Playwright and Chromium
+        working-directory: web-tests
+        run: |
+          npm ci
+          npx playwright install --with-deps chromium
+      - name: Browser tests against the assembled site
+        working-directory: web-tests
+        run: npx playwright test
+      - name: Keep the browser test report
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: |
+            web-tests/playwright-report
+            web-tests/test-results
+          retention-days: 7
       - uses: actions/upload-pages-artifact@v3
         with:
           path: site
