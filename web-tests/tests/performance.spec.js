@@ -5,9 +5,8 @@
 // the result, and the median of 20 flips is held to the budget. Medians are
 // printed on every run, so a regression shows even when it stays inside the
 // budget. With PERF_BUDGETS=report a miss is printed instead of failing.
-import { test, expect } from '@playwright/test';
 import { fileURLToPath } from 'node:url';
-import { median, openExample } from './support.js';
+import { expect, median, openExample, test } from './support.js';
 
 const LARGE = fileURLToPath(new URL('../../build/large.dbc', import.meta.url));
 const FLIPS = 20;

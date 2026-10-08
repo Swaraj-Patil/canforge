@@ -1,5 +1,4 @@
-import { test, expect } from '@playwright/test';
-import { openExample, signalRow } from './support.js';
+import { expect, openExample, signalRow, test } from './support.js';
 
 test.beforeEach(async ({ page }) => {
   await openExample(page);

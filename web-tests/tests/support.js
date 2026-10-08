@@ -1,4 +1,16 @@
-import { expect } from '@playwright/test';
+import { test as base, expect } from '@playwright/test';
+
+/** Playwright's test, failing any test during which the page throws an uncaught error. */
+export const test = base.extend({
+  page: async ({ page }, use) => {
+    const errors = [];
+    page.on('pageerror', (error) => errors.push(error.message));
+    await use(page);
+    expect(errors, 'uncaught errors in the page').toEqual([]);
+  },
+});
+
+export { expect };
 
 /** Open the page and wait until the example bus is decoded on screen. */
 export async function openExample(page, path = '/') {
