@@ -1,7 +1,7 @@
 //! Turning the bytes of a frame into physical values.
 
 use crate::bits::{fits, physical_value, raw_value};
-use crate::model::{Database, Mux, ValueType};
+use crate::model::{Database, Message, Mux, ValueType};
 
 #[derive(Debug, Clone)]
 pub struct DecodedSignal {
@@ -27,10 +27,21 @@ pub struct Decoded {
 /// multiplexer selects them. `extended` restricts the lookup to standard
 /// (`Some(false)`) or extended (`Some(true)`) frames.
 pub fn decode(db: &Database, frame_id: u64, data: &[u8], extended: Option<bool>) -> Result<Decoded, String> {
-    let m = match db.find_frame(frame_id, extended) {
-        Some(m) => m,
-        None => return Err(format!("no message with frame ID 0x{:X}", frame_id)),
-    };
+    match db.find_frame(frame_id, extended) {
+        Some(m) => decode_message(m, data),
+        None => Err(no_message(frame_id)),
+    }
+}
+
+/// The error for a frame ID that no message in the database uses.
+pub fn no_message(frame_id: u64) -> String {
+    format!("no message with frame ID 0x{:X}", frame_id)
+}
+
+/// Decode one frame of a message already looked up, for instance through a
+/// `FrameIndex`. Multiplexed signals are included only when the multiplexer
+/// selects them.
+pub fn decode_message(m: &Message, data: &[u8]) -> Result<Decoded, String> {
     if (data.len() as u64) < m.dlc {
         return Err(format!("message '{}' needs {} bytes, got {}", m.name, m.dlc, data.len()));
     }

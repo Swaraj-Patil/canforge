@@ -9,6 +9,8 @@ export const state = {
   fileName: '',
   isExample: false,
   analysis: null,
+  // How long cf_load took for the open file, in milliseconds.
+  loadMs: 0,
   selected: 0,
   frames: new Map(),
   animate: true,

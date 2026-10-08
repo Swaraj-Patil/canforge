@@ -1,10 +1,10 @@
 //! A small JSON writer, and the JSON documents the CLI and the browser use.
 
 use crate::bits::signal_bits;
-use crate::decode::{decode, parse_frame_id, parse_hex};
+use crate::decode::{decode_message, no_message, parse_frame_id, parse_hex, Decoded};
 use crate::diff::{counts as diff_counts, diff, verdict};
 use crate::lint::{counts as lint_counts, lint, Diag, RULES};
-use crate::model::{Database, Mux};
+use crate::model::{Database, FrameIndex, Mux};
 use crate::names::snake;
 use crate::numfmt::json_num;
 use crate::parser::parse;
@@ -280,12 +280,19 @@ pub fn analyze_json(src: &str) -> String {
     }
 }
 
-/// Decode a frame given as text: a frame ID and hex bytes.
+/// Parse DBC source, then decode a frame given as text: a frame ID and hex bytes.
 pub fn decode_json(src: &str, frame_id: &str, hex: &str) -> String {
-    let db = match parse(src) {
-        Ok(db) => db,
-        Err(e) => return error_json(&e.message, Some(e.line)),
-    };
+    match parse(src) {
+        Ok(db) => decoded_json(&db, &FrameIndex::new(&db), frame_id, hex),
+        Err(e) => error_json(&e.message, Some(e.line)),
+    }
+}
+
+/// Decode a frame given as text, a frame ID and hex bytes, finding its
+/// message through `frames`, the index of `db`. The lookup ignores whether
+/// the frame is standard or extended and takes the first message with that
+/// ID in the file, as `canforge decode` does.
+pub fn decoded_json(db: &Database, frames: &FrameIndex, frame_id: &str, hex: &str) -> String {
     let id = match parse_frame_id(frame_id) {
         Ok(id) => id,
         Err(e) => return error_json(&e, None),
@@ -294,45 +301,56 @@ pub fn decode_json(src: &str, frame_id: &str, hex: &str) -> String {
         Ok(d) => d,
         Err(e) => return error_json(&e, None),
     };
-    match decode(&db, id, &data, None) {
-        Ok(d) => {
-            let signals: Vec<String> = d
-                .signals
-                .iter()
-                .map(|s| {
-                    let mut o = Obj::new()
-                        .text("name", &s.name)
-                        .text("raw", &s.raw.to_string())
-                        .number("physical", s.physical)
-                        .text("unit", &s.unit);
-                    o = match &s.label {
-                        Some(l) => o.text("label", l),
-                        None => o.null("label"),
-                    };
-                    o.build()
-                })
-                .collect();
-            let mut o = Obj::new()
-                .flag("ok", true)
-                .text("message", &d.message)
-                .int("frame_id", d.frame_id as i128)
-                .flag("extended", d.extended);
-            o = match d.mux {
-                Some(v) => o.text("mux", &v.to_string()),
-                None => o.null("mux"),
-            };
-            o.raw("signals", arr(signals)).build()
-        }
+    let m = match frames.find(id, None).and_then(|i| db.messages.get(i)) {
+        Some(m) => m,
+        None => return error_json(&no_message(id), None),
+    };
+    match decode_message(m, &data) {
+        Ok(d) => decoded_frame_json(&d),
         Err(e) => error_json(&e, None),
     }
 }
 
-/// Generated files for `lang` ("c" or "python") as `{"files":[{name, content}]}`.
-pub fn generate_json(src: &str, lang: &str, prefix: &str, source_name: &str) -> String {
-    let db = match parse(src) {
-        Ok(db) => db,
-        Err(e) => return error_json(&e.message, Some(e.line)),
+fn decoded_frame_json(d: &Decoded) -> String {
+    let signals: Vec<String> = d
+        .signals
+        .iter()
+        .map(|s| {
+            let mut o = Obj::new()
+                .text("name", &s.name)
+                .text("raw", &s.raw.to_string())
+                .number("physical", s.physical)
+                .text("unit", &s.unit);
+            o = match &s.label {
+                Some(l) => o.text("label", l),
+                None => o.null("label"),
+            };
+            o.build()
+        })
+        .collect();
+    let mut o = Obj::new()
+        .flag("ok", true)
+        .text("message", &d.message)
+        .int("frame_id", d.frame_id as i128)
+        .flag("extended", d.extended);
+    o = match d.mux {
+        Some(v) => o.text("mux", &v.to_string()),
+        None => o.null("mux"),
     };
+    o.raw("signals", arr(signals)).build()
+}
+
+/// Parse DBC source, then generate files as `generated_json` does.
+pub fn generate_json(src: &str, lang: &str, prefix: &str, source_name: &str) -> String {
+    match parse(src) {
+        Ok(db) => generated_json(&db, lang, prefix, source_name),
+        Err(e) => error_json(&e.message, Some(e.line)),
+    }
+}
+
+/// Generated files for `lang` ("c" or "python") as `{"files":[{name, content}]}`.
+/// An empty prefix is derived from `source_name`.
+pub fn generated_json(db: &Database, lang: &str, prefix: &str, source_name: &str) -> String {
     let prefix = if prefix.trim().is_empty() {
         snake(source_name.split('.').next().unwrap_or("canbus"))
     } else {
@@ -340,7 +358,7 @@ pub fn generate_json(src: &str, lang: &str, prefix: &str, source_name: &str) -> 
     };
     let file = |name: String, content: String| Obj::new().text("name", &name).text("content", &content).build();
     match lang {
-        "c" => match codegen_c::generate(&db, &prefix, source_name) {
+        "c" => match codegen_c::generate(db, &prefix, source_name) {
             Ok((h, c)) => Obj::new()
                 .flag("ok", true)
                 .raw(
@@ -350,7 +368,7 @@ pub fn generate_json(src: &str, lang: &str, prefix: &str, source_name: &str) -> 
                 .build(),
             Err(e) => error_json(&e, None),
         },
-        "python" => match codegen_py::generate(&db, &prefix, source_name) {
+        "python" => match codegen_py::generate(db, &prefix, source_name) {
             Ok(py) => Obj::new()
                 .flag("ok", true)
                 .raw("files", arr(vec![file(format!("{}.py", prefix), py)]))
@@ -417,6 +435,40 @@ mod tests {
         let j = analyze_json("BO_ 1 M 8 A\n");
         assert!(j.starts_with("{\"ok\":false"));
         assert!(j.contains("\"line\":1"));
+    }
+
+    #[test]
+    fn decoding_through_the_frame_index_matches_scanning_the_messages() {
+        let db = parse(include_str!("../examples/powertrain.dbc")).unwrap();
+        let frames = FrameIndex::new(&db);
+        let data = [0x5Au8; 64];
+        for m in db.messages.iter() {
+            let bytes = &data[..m.dlc as usize];
+            let hex: String = bytes.iter().map(|b| format!("{:02x}", b)).collect();
+            let scanned = crate::decode::decode(&db, m.frame_id, bytes, None).unwrap();
+            assert_eq!(
+                decoded_json(&db, &frames, &m.id_hex(), &hex),
+                decoded_frame_json(&scanned),
+                "{}",
+                m.name
+            );
+        }
+    }
+
+    #[test]
+    fn decoding_reports_bad_input() {
+        let db = parse(include_str!("../examples/powertrain.dbc")).unwrap();
+        let frames = FrameIndex::new(&db);
+        let cases = [
+            ("0x7AB", "00", "no message with frame ID 0x7AB"),
+            ("zz", "00", "'zz' is not a frame ID"),
+            ("0x100", "xyz", "'xyz' is not hexadecimal"),
+            ("0x100", "e8 03", "needs 8 bytes, got 2"),
+        ];
+        for (id, hex, fragment) in cases.iter() {
+            let j = decoded_json(&db, &frames, id, hex);
+            assert!(j.starts_with("{\"ok\":false") && j.contains(fragment), "{} {}: {}", id, hex, j);
+        }
     }
 
     #[test]

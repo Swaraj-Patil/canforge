@@ -1,5 +1,6 @@
 //! The parsed form of a DBC file.
 
+use std::collections::BTreeMap;
 use std::fmt;
 
 /// A syntax error with the line it occurred on.
@@ -184,6 +185,43 @@ impl Database {
     }
 }
 
+/// Finds messages by frame ID without scanning every message. Build it once
+/// per database; it answers exactly as `Database::find_frame` does.
+#[derive(Debug, Clone, Default)]
+pub struct FrameIndex {
+    /// The first message in file order for each (frame ID, extended) pair.
+    first: BTreeMap<(u64, bool), usize>,
+}
+
+impl FrameIndex {
+    pub fn new(db: &Database) -> FrameIndex {
+        let mut first = BTreeMap::new();
+        for (i, m) in db.messages.iter().enumerate() {
+            first.entry((m.frame_id, m.is_extended)).or_insert(i);
+        }
+        FrameIndex { first }
+    }
+
+    /// The index in `db.messages` of the first message with this frame ID
+    /// in exactly this format, standard or extended.
+    pub fn find_exact(&self, frame_id: u64, extended: bool) -> Option<usize> {
+        self.first.get(&(frame_id, extended)).copied()
+    }
+
+    /// The index in `db.messages` of the message `Database::find_frame`
+    /// returns. Without a format, that is whichever of the standard and the
+    /// extended message with this ID comes first in the file.
+    pub fn find(&self, frame_id: u64, extended: Option<bool>) -> Option<usize> {
+        match extended {
+            Some(e) => self.find_exact(frame_id, e),
+            None => match (self.find_exact(frame_id, false), self.find_exact(frame_id, true)) {
+                (Some(standard), Some(ext)) => Some(standard.min(ext)),
+                (standard, ext) => standard.or(ext),
+            },
+        }
+    }
+}
+
 /// The placeholder Vector tools use for "no node".
 pub const NO_NODE: &str = "Vector__XXX";
 
@@ -231,4 +269,54 @@ pub const KEYWORDS: &[&str] = &[
 
 pub fn is_keyword(text: &str) -> bool {
     KEYWORDS.contains(&text)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::parser::parse;
+
+    /// Checks that `FrameIndex::find` picks the message `Database::find_frame`
+    /// picks, for every frame ID in `ids`, with and without a format.
+    fn check_agrees(src: &str, ids: &[u64]) {
+        let db = parse(src).unwrap();
+        let index = FrameIndex::new(&db);
+        for &id in ids {
+            for ext in [None, Some(false), Some(true)] {
+                let want = db.find_frame(id, ext).map(|m| m.name.as_str());
+                let got = index.find(id, ext).map(|i| db.messages[i].name.as_str());
+                assert_eq!(got, want, "frame 0x{:X}, extended {:?}", id, ext);
+            }
+        }
+    }
+
+    // Bit 31 marks an extended ID: 2147483904 is extended frame 0x100.
+    const EXTENDED_FIRST: &str = "BO_ 2147483904 Ext: 8 A\nBO_ 256 Std: 8 A\nBO_ 256 StdAgain: 8 A\nBO_ 512 Other: 8 A\n";
+    const STANDARD_FIRST: &str = "BO_ 256 Std: 8 A\nBO_ 2147483904 Ext: 8 A\nBO_ 2147483904 ExtAgain: 8 A\n";
+
+    #[test]
+    fn frame_index_answers_like_find_frame() {
+        check_agrees(EXTENDED_FIRST, &[0x100, 0x200, 0x300]);
+        check_agrees(STANDARD_FIRST, &[0x100, 0x200]);
+    }
+
+    #[test]
+    fn frame_index_without_a_format_picks_the_first_in_the_file() {
+        for (src, first) in [(EXTENDED_FIRST, "Ext"), (STANDARD_FIRST, "Std")] {
+            let db = parse(src).unwrap();
+            let index = FrameIndex::new(&db);
+            assert_eq!(index.find(0x100, None).map(|i| db.messages[i].name.as_str()), Some(first));
+        }
+    }
+
+    #[test]
+    fn frame_index_finds_an_exact_id_and_format() {
+        let db = parse(EXTENDED_FIRST).unwrap();
+        let index = FrameIndex::new(&db);
+        let name = |i: Option<usize>| i.map(|i| db.messages[i].name.as_str());
+        assert_eq!(name(index.find_exact(0x100, true)), Some("Ext"));
+        // A repeated ID (lint E003) resolves to its first message.
+        assert_eq!(name(index.find_exact(0x100, false)), Some("Std"));
+        assert_eq!(name(index.find_exact(0x200, true)), None);
+    }
 }

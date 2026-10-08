@@ -6,6 +6,7 @@
 //! model's bit-by-bit packing in CI, so matching them byte for byte means the
 //! Rust generator emits verified code.
 
+use canforge::model::FrameIndex;
 use canforge::{codegen_c, codegen_py, decode, diff, lint, parse, Database};
 use std::path::PathBuf;
 
@@ -194,6 +195,39 @@ fn diff_matches_reference() {
         .map(|l| l.to_string())
         .collect();
     assert_same_text("diff output", &got.join("\n"), &want.join("\n"));
+}
+
+#[test]
+fn frame_index_agrees_with_find_frame_on_every_fixture() {
+    let mut files: Vec<String> = vec![
+        "examples/powertrain.dbc".to_string(),
+        "tests/fixtures/diff/v1.dbc".to_string(),
+        "tests/fixtures/diff/v2.dbc".to_string(),
+    ];
+    for entry in std::fs::read_dir(root().join("tests/fixtures/lint")).unwrap() {
+        let name = entry.unwrap().file_name().to_string_lossy().into_owned();
+        if name.ends_with(".dbc") {
+            files.push(format!("tests/fixtures/lint/{}", name));
+        }
+    }
+    let mut lookups = 0;
+    for rel in files.iter() {
+        let db = load(rel);
+        let index = FrameIndex::new(&db);
+        for m in db.messages.iter() {
+            // The message's own ID, and usually an unused neighbour.
+            for id in [m.frame_id, m.frame_id + 1] {
+                for ext in [None, Some(false), Some(true)] {
+                    let want = db.find_frame(id, ext).map(|w| w as *const _);
+                    let got = index.find(id, ext).map(|i| &db.messages[i] as *const _);
+                    assert_eq!(got, want, "{}: frame 0x{:X}, extended {:?}", rel, id, ext);
+                    lookups += 1;
+                }
+            }
+        }
+    }
+    // Every file defines at least one message, so each gives six lookups or more.
+    assert!(files.len() >= 23 && lookups >= 6 * files.len(), "{} lookups in {} files", lookups, files.len());
 }
 
 #[test]

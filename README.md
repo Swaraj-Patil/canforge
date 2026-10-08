@@ -4,7 +4,7 @@
 
 [![CI](https://github.com/Swaraj-Patil/canforge/actions/workflows/ci.yml/badge.svg)](https://github.com/Swaraj-Patil/canforge/actions/workflows/ci.yml)
 
-**[Try it in your browser](https://swaraj-patil.github.io/canforge/)**: open the example bus, click any bit of a frame, and watch the decoded values change. The page runs the same Rust code as the command-line tool, compiled to WebAssembly, and your file never leaves the browser.
+**[Try it in your browser](https://swaraj-patil.github.io/canforge/)**: open the example bus, click any bit of a frame, and watch the decoded values change. The page runs the same Rust code as the command-line tool, compiled to WebAssembly, and your file never leaves the browser. It parses the file once and keeps it in memory, so decoding stays instant even on databases with thousands of signals; the summary shows how long parsing took.
 
 ---
 
@@ -96,7 +96,7 @@ Bit packing is where CAN tooling goes wrong quietly, especially Motorola byte or
 | **Every bit layout** | All 4,160 placements that fit an 8-byte frame (both byte orders, every start bit and length), round-tripped through two independent packing methods. |
 | **Differential C test** | The generated C packs and unpacks 2,800 random frames and is compared field by field against the reference: 40,117 checks, run under AddressSanitizer and UndefinedBehaviorSanitizer. |
 | **Strict compilation** | The generated C must compile with `-Werror` under 13 warning flags, and the header must compile as C++. |
-| **WebAssembly smoke test** ([`tests/wasm_smoke.mjs`](tests/wasm_smoke.mjs)) | The browser build runs in Node against the same golden files, plus 2,000 repeated calls to catch leaks. |
+| **WebAssembly smoke test** ([`tests/wasm_smoke.mjs`](tests/wasm_smoke.mjs)) | The browser build runs in Node against the same golden files: generated code, and all 280 frames decoded through the database the module keeps loaded, compared as exact IEEE 754 bit patterns. Plus 2,000 repeated calls to catch leaks. |
 | **Browser tests** ([`web-tests/`](web-tests/)) | Playwright drives the assembled site in Chromium: the example bus, flipping a bit and reading the new value, Problems, Generated code and Compare. |
 | **Timing budgets** ([`tests/wasm_perf.mjs`](tests/wasm_perf.mjs), [`web-tests/tests/performance.spec.js`](web-tests/tests/performance.spec.js)) | On a synthetic database of 500 messages and 5,000 signals, loading takes under 500 ms, and a bit flip redraws the page within 50 ms (16 ms on the example bus). Every run prints the measurements. |
 
@@ -196,6 +196,8 @@ python3 reference/make_golden.py   # regenerate tests/golden after changing beha
 ## Scope
 
 canforge reads the parts of the DBC format that describe frames and signals: nodes, messages, signals, simple multiplexing, comments, value descriptions and float signal types. Attributes, environment variables and signal groups are parsed and skipped. Extended multiplexing (`SG_MUL_VAL_`) is not supported yet.
+
+Decoding a frame by its ID, in `canforge decode` and in the browser, picks the first message in the file with that number, whether the frame is standard (11-bit) or extended (29-bit). A file that defines both a standard and an extended frame with the same number therefore decodes the one that comes first. This is intentional for now: a frame ID typed by hand does not say which format it is. Log replay, where every frame records its format, will look frames up by number and format together.
 
 ## License
 

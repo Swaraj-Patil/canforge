@@ -9,7 +9,7 @@ function setCodeButtons(enabled) {
 
 export function renderCode() {
   if (!state.analysis) return;
-  const result = state.cf.generate(state.src, state.lang, $('prefix').value.trim(), state.fileName);
+  const result = state.cf.generateLoaded(state.lang, $('prefix').value.trim(), state.fileName);
   if (!result.ok) {
     state.files = [];
     $('code-files').innerHTML = '';
