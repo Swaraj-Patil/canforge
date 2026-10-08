@@ -4,7 +4,7 @@
 
 [![CI](https://github.com/Swaraj-Patil/canforge/actions/workflows/ci.yml/badge.svg)](https://github.com/Swaraj-Patil/canforge/actions/workflows/ci.yml)
 
-**[Try it in your browser](https://swaraj-patil.github.io/canforge/)**: open the example bus, click any bit of a frame, and watch the decoded values change. The page runs the same Rust code as the command-line tool, compiled to WebAssembly, and your file never leaves the browser. It parses the file once and keeps it in memory, so decoding stays instant even on databases with thousands of signals; the summary shows how long parsing took.
+**[Try it in your browser](https://swaraj-patil.github.io/canforge/)**: open the example bus, click any bit of a frame, and watch the decoded values change. Every row of the bit grid shows its byte in hex and decimal, and each signal's name sits across its bits. The page runs the same Rust code as the command-line tool, compiled to WebAssembly, and your file never leaves the browser. It parses the file once and keeps it in memory, so decoding stays instant even on databases with thousands of signals; the summary shows how long parsing took.
 
 ---
 
