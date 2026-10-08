@@ -70,6 +70,18 @@ def main():
             index += 1
     write("decode_vectors.tsv", "\n".join(lines) + "\n")
 
+    # What every signal of the example can carry: raw bounds as exact
+    # integers, physical bounds as IEEE-754 bit patterns.
+    lines = ["# message\tsignal\traw_min\traw_max\tphysical_min_bits\tphysical_max_bits"]
+    for m in db.messages:
+        for s in m.signals:
+            r = ref.representable_range(s)
+            if r is None:
+                lines.append("%s\t%s\t-\t-\t-\t-" % (m.name, s.name))
+            else:
+                lines.append("%s\t%s\t%d\t%d\t%s\t%s" % (m.name, s.name, r[0], r[1], bits(r[2]), bits(r[3])))
+    write("ranges.tsv", "\n".join(lines) + "\n")
+
     # Lint output for every fixture and the example: file, rule, severity, line, message
     lines = ["# file\trule\tseverity\tline\tmessage"]
     files = sorted(f for f in os.listdir(LINT_DIR) if f.endswith(".dbc"))

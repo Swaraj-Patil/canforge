@@ -114,6 +114,56 @@ check(
 const pl = cf.generateLoaded('python', 'powertrain', 'powertrain.dbc');
 check(pl.ok && pl.files[0].content === read('tests/golden/powertrain.py'), 'cf_generate_loaded Python matches the golden file');
 
+// What each signal can carry, from the analysis JSON, against the reference.
+const loadedAnalysis = cf.load(dbc);
+const rangeRows = read('tests/golden/ranges.tsv')
+  .split('\n')
+  .filter((l) => l && !l.startsWith('#'))
+  .map((l) => l.split('\t'));
+const rangeMismatches = [];
+let rangeIndex = 0;
+for (const m of loadedAnalysis.messages) {
+  for (const s of m.signals) {
+    const [msgName, sigName, rawMin, rawMax, minBits, maxBits] = rangeRows[rangeIndex] || [];
+    rangeIndex += 1;
+    const sameBits = (x, bits) => (x === null ? nonFinite(bits) : bitsOf(x) === bits);
+    const ok =
+      msgName === m.name &&
+      sigName === s.name &&
+      s.raw_min === rawMin &&
+      s.raw_max === rawMax &&
+      sameBits(s.physical_min, minBits) &&
+      sameBits(s.physical_max, maxBits);
+    if (!ok) rangeMismatches.push(`${m.name}.${s.name}: ${s.raw_min} ${s.raw_max} ${s.physical_min} ${s.physical_max}`);
+  }
+}
+check(
+  rangeIndex === 40 && rangeRows.length === 40 && rangeMismatches.length === 0,
+  `the analysis gives every signal's representable range bit for bit (${rangeIndex} signals)`,
+);
+for (const m of rangeMismatches.slice(0, 5)) console.log(`     ${m}`);
+
+// The generated C of every signal, each part found verbatim in the golden files.
+const goldenH = read('tests/golden/powertrain.h');
+const goldenC = read('tests/golden/powertrain.c');
+let snippets = 0;
+const snippetMisses = [];
+loadedAnalysis.messages.forEach((m, mi) => {
+  m.signals.forEach((s, si) => {
+    const snip = cf.signalCodeLoaded(mi, si, 'powertrain');
+    const found =
+      snip.ok &&
+      goldenH.includes(snip.field) &&
+      [snip.pack, snip.unpack, snip.functions].every((part) => part && goldenC.includes(part));
+    if (found) snippets += 1;
+    else snippetMisses.push(`${m.name}.${s.name}`);
+  });
+});
+check(snippets === 40, `cf_signal_code_loaded gives C found verbatim in the golden files for all ${snippets} signals`);
+for (const m of snippetMisses.slice(0, 5)) console.log(`     ${m}`);
+const badIndex = cf.signalCodeLoaded(0, 99, 'powertrain');
+check(!badIndex.ok && badIndex.error.message.includes('has no signal 99'), 'cf_signal_code_loaded reports a signal that does not exist');
+
 const failed = cf.load('BO_ 1 M 8 A\n');
 const still = cf.decodeLoaded('0x100', 'e8 03 03 5a 18 fc 00 05');
 check(

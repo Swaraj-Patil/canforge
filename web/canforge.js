@@ -59,5 +59,7 @@ export async function loadCanforge(source) {
     load: (src) => call('cf_load', src),
     decodeLoaded: (frameId, hex) => call('cf_decode_loaded', frameId, hex),
     generateLoaded: (lang, prefix, fileName) => call('cf_generate_loaded', lang, prefix, fileName),
+    // Message and signal are indices into the analysis JSON.
+    signalCodeLoaded: (message, signal, prefix) => call('cf_signal_code_loaded', String(message), String(signal), prefix),
   };
 }

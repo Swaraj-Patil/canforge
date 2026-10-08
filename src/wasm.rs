@@ -181,3 +181,20 @@ pub extern "C" fn cf_generate_loaded(
     let name = read_input(name_ptr, name_len);
     set_result(with_loaded(|l| json::generated_json(&l.db, &lang, &prefix, &name)));
 }
+
+/// The generated C for one signal of the loaded database. The message and
+/// signal are indices into the analysis JSON, written as decimal text.
+#[no_mangle]
+pub extern "C" fn cf_signal_code_loaded(
+    message_ptr: *const u8,
+    message_len: usize,
+    signal_ptr: *const u8,
+    signal_len: usize,
+    prefix_ptr: *const u8,
+    prefix_len: usize,
+) {
+    let message = read_input(message_ptr, message_len);
+    let signal = read_input(signal_ptr, signal_len);
+    let prefix = read_input(prefix_ptr, prefix_len);
+    set_result(with_loaded(|l| json::signal_code_json(&l.db, &message, &signal, &prefix)));
+}

@@ -725,6 +725,35 @@ def physical_value(s, raw):
     return float(raw) * s.factor + s.offset
 
 
+# The largest finite values of the float types.
+FLT_MAX = struct.unpack("<f", struct.pack("<I", 0x7F7FFFFF))[0]
+DBL_MAX = struct.unpack("<d", struct.pack("<Q", 0x7FEFFFFFFFFFFFFF))[0]
+
+
+def representable_range(s):
+    """What a signal can carry, as (raw_min, raw_max, physical_min, physical_max).
+
+    The raw bounds are the raw values decode can report: the signed or
+    unsigned range of an integer signal, and the unsigned bit pattern of a
+    float signal. The physical bounds are the extreme values decode can
+    produce: an integer signal's raw extremes scaled exactly as decode scales
+    them, and a float signal's largest finite magnitude, scaled. A signal
+    with an invalid length has no bits to decode, and no range (None).
+    """
+    if not valid_length(s):
+        return None
+    if s.value_type == "integer":
+        rmin, rmax = raw_range(s.length, s.signed)
+        a = physical_value(s, rmin)
+        b = physical_value(s, rmax)
+    else:
+        rmin, rmax = raw_range(s.length, False)
+        top = FLT_MAX if s.value_type == "float32" else DBL_MAX
+        a = -top * s.factor + s.offset
+        b = top * s.factor + s.offset
+    return rmin, rmax, min(a, b), max(a, b)
+
+
 # ---------------------------------------------------------------------------
 # Identifiers for generated code
 # ---------------------------------------------------------------------------
@@ -919,11 +948,7 @@ def lint(db):
             if s.minimum > s.maximum:
                 out.append(diag("W002", "signal '%s' has minimum %s greater than maximum %s" % (s.name, fmt_f64(s.minimum), fmt_f64(s.maximum)), s.line, m.name, s.name))
             elif valid_length(s) and s.value_type == "integer" and s.factor != 0.0 and not (s.minimum == 0.0 and s.maximum == 0.0):
-                rmin, rmax = raw_range(s.length, s.signed)
-                a = float(rmin) * s.factor + s.offset
-                b = float(rmax) * s.factor + s.offset
-                lo_p = min(a, b)
-                hi_p = max(a, b)
+                _, _, lo_p, hi_p = representable_range(s)
                 tol = 1e-6 * max(max(1.0, abs(lo_p)), abs(hi_p))
                 if s.minimum < lo_p - tol or s.maximum > hi_p + tol:
                     out.append(diag("W001", "signal '%s' declares range [%s|%s] but its %d-bit raw value can only represent [%s|%s]" % (s.name, fmt_f64(s.minimum), fmt_f64(s.maximum), s.length, fmt_f64(lo_p), fmt_f64(hi_p)), s.line, m.name, s.name))

@@ -155,6 +155,71 @@ class Bits(unittest.TestCase):
                     self.assertEqual(ref.raw_value(bytes(data), s), values[s.name], s.name)
 
 
+class Ranges(unittest.TestCase):
+    def setUp(self):
+        self.db = ref.parse_file(EXAMPLE)
+
+    def signal(self, name):
+        return next(s for m in self.db.messages for s in m.signals if s.name == name)
+
+    def test_integer_signals_scale_their_raw_extremes(self):
+        cases = {
+            "VehicleSpeed": (0, 65535, 0.0, 655.35),
+            "SteeringAngle": (-32768, 32767, -3276.8, 3276.7),
+            "StatorTemp": (0, 255, -40.0, 215.0),
+            "MaxCellTemp": (-128, 127, -128.0, 127.0),
+        }
+        for name, (rmin, rmax, pmin, pmax) in cases.items():
+            r = ref.representable_range(self.signal(name))
+            self.assertEqual(r[:2], (rmin, rmax), name)
+            self.assertAlmostEqual(r[2], pmin, places=9, msg=name)
+            self.assertAlmostEqual(r[3], pmax, places=9, msg=name)
+
+    def test_64_bit_signals_keep_exact_raw_bounds(self):
+        r = ref.representable_range(self.signal("SerialNumber"))
+        self.assertEqual(r[:2], (0, (1 << 64) - 1))
+        # The physical bound is the double that decode returns for the
+        # all-ones raw value, which rounds up to 2**64.
+        self.assertEqual(r[3], 18446744073709551616.0)
+        r = ref.representable_range(self.signal("TimestampNs"))
+        self.assertEqual(r[:2], (-(1 << 63), (1 << 63) - 1))
+        self.assertEqual(r[2], -9223372036854775808.0)
+
+    def test_float_signals_report_bit_patterns_and_float_extremes(self):
+        self.assertEqual(ref.FLT_MAX, 3.4028234663852886e38)
+        r = ref.representable_range(self.signal("CoolantFlow"))
+        self.assertEqual(r, (0, (1 << 32) - 1, -ref.FLT_MAX, ref.FLT_MAX))
+
+    def test_a_negative_factor_swaps_the_ends(self):
+        s = ref.Signal()
+        s.length, s.factor, s.offset = 8, -0.5, 10.0
+        self.assertEqual(ref.representable_range(s), (0, 255, -117.5, 10.0))
+
+    def test_an_invalid_length_has_no_range(self):
+        s = ref.Signal()
+        self.assertIsNone(ref.representable_range(s))
+
+    def test_bounds_are_what_decode_reports_for_the_extreme_raw_values(self):
+        checked = 0
+        for m in self.db.messages:
+            _, _, mux_sig = ref.split_groups(m)
+            for s in m.signals:
+                if s.value_type != "integer" or s is mux_sig:
+                    continue
+                rmin, rmax, pmin, pmax = ref.representable_range(s)
+                for raw in (rmin, rmax):
+                    data = bytearray(m.dlc)
+                    if isinstance(s.mux, int):
+                        ref.insert_raw(data, mux_sig, s.mux)
+                    ref.insert_raw(data, s, raw)
+                    decoded = ref.decode(self.db, m.frame_id, bytes(data), m.is_extended)
+                    got = next(d for d in decoded["signals"] if d["name"] == s.name)
+                    self.assertEqual(got["raw"], str(raw), s.name)
+                    self.assertIn(got["physical"], (pmin, pmax), s.name)
+                    checked += 1
+        self.assertGreater(checked, 60)
+
+
 class Lint(unittest.TestCase):
     def test_fixtures(self):
         files = sorted(f for f in os.listdir(LINT_DIR) if f.endswith(".dbc"))
