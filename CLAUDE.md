@@ -38,7 +38,7 @@ scripts/assemble-site.sh && (cd web-tests && npx playwright test)
 
 - The browser tests need a one-time setup: `(cd web-tests && npm ci && npx playwright install chromium)`. They run against `site/`, so assemble it after every change to `web/` or the Rust code.
 - `scripts/dev-site.sh` builds the module, assembles `site/` as CI does, and serves it at http://127.0.0.1:8000/.
-- The timing tests hard-fail when a budget is missed. `PERF_BUDGETS=report` prints the miss instead; use it only in CI, and only if its timing proves noisy.
+- The timing tests hard-fail locally when a budget is missed. CI sets `PERF_BUDGETS=report`, which prints a miss instead of failing, because shared runners vary too much to gate on; the measurements print on every run either way.
 
 ## Definition of done
 
