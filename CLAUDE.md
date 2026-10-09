@@ -20,7 +20,7 @@ Read this before changing anything that turns bits into values or values into bi
 3. JavaScript never reimplements bit packing, decoding or encoding. All of it goes through the WebAssembly exports, so the browser runs the same verified code as the CLI.
    - Temporary exception: `writeRaw` in `web/views/frames.js` writes the multiplexer's raw value into the frame when someone picks a page button. It is the one place JavaScript packs bits, and Phase 3 replaces it with `cf_encode_loaded`. Until then, do not copy the pattern, and do not "fix" it with a throwaway export, which rule 5 would then make permanent.
 4. Files people open never leave their browser. No network requests except same-origin assets and Google Fonts. No analytics.
-5. Existing WebAssembly exports (`cf_version`, `cf_analyze`, `cf_decode`, `cf_generate`, `cf_diff`) keep working. Add new exports beside them.
+5. Every WebAssembly export marked shipped in the table at the end of `docs/web-roadmap.md` keeps working, including any the page no longer calls: `cf_decode` and `cf_generate` share their cores with the loaded exports, cost nothing, and document the stateless API. Add new exports beside the old ones, and mark each one shipped in that table when it lands.
 6. The site assembly (`scripts/assemble-site.sh`, which the CI `wasm` job and `scripts/dev-site.sh` both run) must include every file the page loads. Copy all of `web/` plus the example files, not a hand-picked list.
 7. Interface copy: sentence case, active voice, plain words, no em-dashes, no all-caps labels.
 
