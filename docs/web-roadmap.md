@@ -190,13 +190,22 @@ Why: real debugging starts from a recording. Engineers capture traffic with `can
 - Vector ASC or BLF logs, and live hardware through WebSerial or WebUSB
 - Accounts, servers, or uploads of any kind
 
-## WebAssembly exports added by this plan
+## WebAssembly exports
 
-| Export | Phase | Returns |
-|---|---|---|
-| `cf_load(src)` | 1 | Analysis JSON; keeps the database loaded |
-| `cf_decode_loaded(frame_id, hex)` | 1 | Decoded frame |
-| `cf_generate_loaded(lang, prefix, source_name)` | 1 | Generated files |
-| `cf_signal_code_loaded(message, signal, prefix)` | 1 | C for one signal |
-| `cf_encode_loaded(frame_id, base_hex, assignments)` | 3 | Hex, clamps, ignored values |
-| `cf_decode_log_loaded(text)` | 4 | Columnar signal series |
+This table is the one list of the module's exports. Every export marked shipped keeps working, including any the page no longer calls (hard rule 5 in `CLAUDE.md`). New exports go beside the old ones, and each is marked shipped here when it lands.
+
+| Export | Phase | Status | Returns |
+|---|---|---|---|
+| `cf_version()` | Before the plan | Shipped | The crate version |
+| `cf_analyze(src)` | Before the plan | Shipped | Analysis JSON: summary, nodes, messages with their signals, bit positions and ranges, and lint findings |
+| `cf_decode(src, frame_id, hex)` | Before the plan | Shipped | Decoded frame, parsing `src` on every call |
+| `cf_generate(src, lang, prefix, source_name)` | Before the plan | Shipped | Generated files, parsing `src` on every call |
+| `cf_diff(old_src, new_src)` | Before the plan | Shipped | Verdict, counts and changes |
+| `cf_load(src)` | 1 | Shipped | The same JSON as `cf_analyze`, keeping the database and its frame index loaded. After a parse error the previous database stays loaded. |
+| `cf_decode_loaded(frame_id, hex)` | 1 | Shipped | Decoded frame of the loaded database |
+| `cf_generate_loaded(lang, prefix, source_name)` | 1 | Shipped | Generated files for the loaded database |
+| `cf_signal_code_loaded(message, signal, prefix)` | 1 | Shipped | C for one signal: its struct member, its pack and unpack lines, and its functions. `message` and `signal` are indices into the analysis JSON, written as decimal text. |
+| `cf_encode_loaded(frame_id, base_hex, assignments)` | 3 | Planned | Hex, clamps, ignored values |
+| `cf_decode_log_loaded(text)` | 4 | Planned | Columnar signal series |
+
+Every argument and result is a UTF-8 string passed through `cf_alloc`, `cf_free`, `cf_result_ptr` and `cf_result_len`, so those four keep working too. The `*_loaded` exports return an error until `cf_load` has succeeded once.
